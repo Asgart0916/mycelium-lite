@@ -1,183 +1,161 @@
-# mycelium-lite — 設計文件
+# mycelium-lite — 設計文件（v2：單人 design sprint 引導器）
 
-> 砍掉重練自 `mycelium-wall`（過度工程 + 邊不帶邏輯）。本檔是可施工規格,不是願景。
+> 2026-05-31 大改。舊定位「連結浮現」（M0–M4a）已封存於 `Design-legacy.md`（commit `a0dd2f3`）。
+> 本檔是 v2 可施工規格。轉型失敗風險與最高風險假設見 `PreMortem.md`。
 
 ## 0. 定位
 
-本地優先的「**連結浮現**」工具:把使用者**忘掉的**舊想法,跟新想法的關聯翻出來。
-不跟 ChatGPT 比單次統整;比的是「跨時間、你早忘了的連結」——這是 ChatGPT 結構上做不到的。
+引導**單人設計師**走一趟 design sprint，用流程卡點 + 概念分布**暴露 brainstorm 盲點**。
+逐字稿 → 結構化節點 + 核心概念 → 四透鏡發散 → 收斂。
 
-## 1. 紅線（CONTRACT,不可違反）
+所有「推想」外包 ChatGPT Plus 人工貼（紅線 #5）；mycelium 只做五件事：
+**流程編排 · prompt 工廠 · 回填解析 · 積木視覺化 · 盲點偵測**。
 
-| # | 紅線 |
-|---|---|
-| 1 | **零 API 計費**:不接任何按量計費的 embedding / LLM API。 |
-| 2 | **原文不可變**:`thoughts.text` 永不覆寫,向量/連結都是衍生物。 |
-| 3 | **跑得動低階硬體**:目標規格 6GB GPU 等級;實際上 embedding 連 CPU 都夠。 |
-| 4 | **GitHub 下載即裝**:基礎功能單一安裝檔、零外部 runtime(無 Python)。⚠️ **2026-05-30 有意識 override**:Tier 1.5 靈感火花為**可選加值**,需使用者自裝 Ollama(附圖文安裝說明 + 路徑管理)。基礎體驗(Tier 0 撈連結 + Tier 2 人工貼)**不依賴 Ollama**,偵測不到時火花降級隱藏、app 照常跑。 |
-| 5 | **高階思考走半手動**:深度推理用 ChatGPT Plus 聊天視窗人工複製貼上,不程式化呼叫。 |
+> 不跟 ChatGPT 比「想得多」——ChatGPT 想得比你多。比的是**逼你面對自己沒想到的維度**（盲點是人的，AI 不會卡）。
 
-> 註:目標用戶只有 **ChatGPT Plus**(無 API、無 Claude Max),故 Tier 2 只能人工貼。已確認可接受。
+## 1. 紅線（CONTRACT，2026-05-31 重審）
 
-## 2. 架構分層
-
-```
-Tier 0    本地 embedding 撈候選            免費 · 自動 · 即時    ← 核心
-Tier 1    (本地 LLM 連結過濾器)            已砍 —— 人工判取代
-Tier 1.5  本地小模型「靈感火花」(生成式)    免費 · 可選 · 秒級    ← M3（新增）
-Tier 2    ChatGPT Plus 深度合成（人工貼）  免費（訂閱內）· 手動  ← M4
-```
-
-> Tier 1.5 ≠ 復活 Tier 1。Tier 1 被砍是因為它當「連結**過濾器**」沒用、人工判更好;
-> Tier 1.5 是全新角色——對**單一概念**生成「延伸方向 + 隨想」來**激發靈感**,不碰連結篩選。
-> 它也不取代 Tier 2:火花是輕量觸發,深度合成仍走 Tier 2 人工貼(紅線 #5 維持)。
-
-## 2.1 Tier 1.5 規格（靈感火花,M3）
-
-> spike 實證:`workspace/sandbox/qwen3-spark-spike/`(throwaway,2026-05-30)。
-> 結論:qwen3 家族小模型對單一概念能即時吐出守繁中、守格式、會發散的火花;
-> qwen2.5:7b 守不住格式(0/18)+漏簡體,出局。
-
-### 觸發與資料流
-```
-使用者選一個 thought →「給我靈感」→ Ollama 生成 → 顯示「方向×3 + 隨想」
-                                                ↓ 拋棄式,不入庫
-                                人工挑/改 → 滿意的才走 add_thought 升格成新想法
-```
-- 火花輸出**不寫進 thoughts/chunks**,是 ephemeral 暫態 → 守紅線 #2(原文不可變)。
-- 只有人工編修後**主動保留**的,才經 `add_thought` 變成新 thought(走正常嵌入流程)。
-
-### 引擎
-- Ollama HTTP `POST http://localhost:11434/api/generate`,`stream:false`。
-- **`think:false` 必設**:qwen3 thinking mode 預設開,會吐 `<think>` 污染輸出(見 SOP 踩坑)。保險再 strip `<think>...</think>`。
-
-### 硬體自適應選模型（安裝時偵測 VRAM,可手動覆寫）
-| VRAM | 模型 | 備註 |
+| # | 紅線 | v2 判定 |
 |---|---|---|
-| **預設 / 6GB(3060,紅線#3 底線)** | **`qwen3.5:4b`**(~2.5GB) | 最新、品質佳、6GB 裝得下 → 當地板兼預設 |
-| 8GB+ | `qwen3:8b`(~5.2GB) | 想要更穩/更長 context 可選 |
-| 純 CPU / 無 Ollama | —— | 火花降級隱藏,app 照常跑 |
+| 1 | 零計費 API | **併入 #5**：核心不程式化呼叫任何計費 API，推想走 ChatGPT Plus 訂閱內人工貼 |
+| 2 | **原文不可變** | **鐵律**：`node.source_quote` 照抄逐字稿，永不改寫（spike 已驗 72/72 可追溯）。是整個盲點/收斂的可信地基 |
+| 3 | 跑得動低階硬體 | **火花啟用時生效**：核心路徑（步0–1）不本地推論；僅步2 火花破冰閥依賴 Ollama（可選加值，比照 v1 對 Tier 1.5 的 override） |
+| 4 | 下載即裝無 runtime | **降為目標**：純前端可 build 靜態檔，本地開或 GitHub Pages 部署；火花需使用者自裝 Ollama（附引導）|
+| 5 | **高階思考半手動** | **頭號鐵律**：深度推想走 ChatGPT Plus 人工複製貼上，程式**不呼叫任何深度推理 API** |
 
-### 生成參數
-- temperature:`qwen3.5:4b` 用 **0.7**(0.9+ 偶發簡體字 + `<>` 殘留);`qwen3:8b` 可 0.9。
-- 已知小瑕(4b):偶帶陸式詞彙(信息/塑料/算法)→ prompt 加「台灣慣用詞彙」壓制。
+## 2. 流程（5 步，HMW 已砍）
 
-### Prompt 模板（spike 定案:去 `<>` 佔位 + 台灣詞彙）
-```
-你是發想助手。針對下面這個想法,給我激發靈感的延伸,不要完整方案,要發散、可以歪。
-務必用繁體中文與台灣慣用詞彙。嚴格照以下格式輸出,不要加任何其他文字:
+> v1 HTML 參考框架是 5 步 + Crazy8s 8 格；v2 砍 HMW、一次往返、四透鏡。重編號如下。
 
-方向:
-- 關鍵詞或切角一
-- 關鍵詞或切角二
-- 關鍵詞或切角三
-隨想:
-(50 字以內,一段聯想短文)
+| 步 | 內容 | 誰做 | 菌絲 | 工具管？ |
+|---|---|---|---|---|
+| **0** | 逐字稿 → ChatGPT 一次往返 → 回填 `core_concepts + nodes + lenses`（收斂+發散同做）| 人貼 / ChatGPT | — | ✅ prompt 工廠 + 回填解析 |
+| **1** | 積木牆視覺化 + 概念分布盲點呈現（E2）| mycelium | — | ✅ 核心 |
+| **2** | 針對薄概念 / 四透鏡，**人自己再發散補洞**（卡點 = 盲點訊號）| 人（火花可破冰）| ✅ 只在這步長 | ✅ |
+| **3** | 收斂：Impact / Effort 象限選方向 | 人 | — | ✅ |
+| **4–5** | 假設解構 + 最小驗證 → **走出工具**（mycelium 不管）| 人 | — | ❌ |
 
-想法:「{thought 原文}」
-```
-
-### 優雅降級
-偵測不到 Ollama / 模型沒拉 → 火花入口變灰 + 提示「裝 Ollama 解鎖」;Tier 0 撈連結、Tier 2 人工貼不受影響。
-
-## 2.2 Tier 2 規格（深度合成,M4）
-
-> ⛔ 紅線 #5:深度推理走 ChatGPT Plus 人工複製貼上,**程式不呼叫任何 API**。
-> 後端只「組字串 + 存回填」(`synth.rs` 純函式,無 reqwest、無網路)。
-
-### 角色
-把 seed 想法 + 它的**一階已確認連結**鄰居,組成一段跨想法深挖 prompt,交給 ChatGPT Plus 做深度合成。
-≠ Tier 1.5 火花(對單一概念發散激靈感);Tier 2 是對「你親手確認相關的一組想法」做收斂式綜合。
-
-### 觸發與資料流
-```
-選定想法 →「🔬 深度合成」→ synthesis_prompt 組 prompt(seed + 一階已確認連結原文)
-        → 一鍵複製 → 人工貼進 ChatGPT Plus → 人工把回覆貼回來
-        → save_artifact → 存進 artifacts 表,關聯此想法,可重看 / 刪除
-```
-
-### prompt 組成（`synth::build_synthesis_prompt`,純函式可單測）
-- **有鄰居**:走「跨想法合成」版——列出 seed + 編號的已確認鄰居原文,要求指出共同深層主題、交叉新洞見、可深挖的問題。
-- **無鄰居**:退化成「單一想法深挖」版(仍可用,只是少了跨連結張力)。
-- 全程要求繁體中文 + 台灣慣用詞彙(與火花一致)。
-
-### artifact 儲存（守紅線 #2）
-- 人工貼回的結果存進 **SQLite `artifacts` 表**(`thought_id, prompt, response, created_at`)。
-- **刻意 `CREATE TABLE IF NOT EXISTS` 補建、不 bump `user_version`** → 既有 thoughts/chunks/links 不被重建,實測資料保留。(若日後真要 bump 重建,drop 區塊已含 artifacts。)
-- artifact 是衍生物,**不覆寫 thoughts**;可刪(可逆)。
-
-### 命令
-`synthesis_prompt(thought_id)` / `save_artifact(thought_id, prompt, response)` / `list_artifacts(thought_id)` / `delete_artifact(artifact_id)`。
-
-### MVP 邊界（本次不做,留待之後）
-- artifact 不提供「再升格成新 thought」入口。
-- 無跨想法的全域 artifact 列表(只在選定想法下顯示)。
-- prompt 只取一階已確認連結,不擴二階、不混即時 top-K 候選。
-
-## 3. 資料流
+### 資料流
 
 ```
-add_thought(text) → 本地嵌入 → 存 thoughts（不可變）
-find_connections(id, top_k) → 即時 cosine top-K（排除自己 + 已決定過的）
-confirm_link / reject_link → 寫 links → 確認的才落地成菌絲
-get_graph() → 已確認連結 = 整面菌絲牆
+步0  貼逐字稿 → 一鍵複製 prompt → 人貼進 ChatGPT Plus → 人貼回 JSON
+     → robust 解析 → 存成 sprint（core_concepts + nodes + lenses）
+步1  渲染積木牆（nodes 依 core_concept 分群）+ 概念分布條 → E2 標薄概念
+步2  人對薄概念補節點（菌絲生長）；卡住→召喚火花破冰（Ollama，標機器提示）
+步3  候選方向丟 Impact/Effort 2×2 → 選定
+步4-5 匯出 brief，離開工具
 ```
 
-## 4. 資料模型（SQLite）
+## 3. 步2 火花破冰閥（子規格，複用 v1 M3 邏輯）
 
-```sql
-thoughts(id, created_at, text)                       -- 原文不可變,整段顯示用
-chunks(id, thought_id, seq, text, vector BLOB)       -- M2：一段切多句,每句 384×f32
-links(id, src, dst, similarity, status, created_at, UNIQUE(src,dst))
-       -- status ∈ {confirmed, rejected};(src,dst) 以 (min,max) 正規化（連結對稱）
-       -- pending 不入庫,即時算
-artifacts(id, thought_id, prompt, response, created_at)  -- M4 Tier 2：人工貼回的深度合成
-       -- CREATE IF NOT EXISTS 補建、不 bump user_version → 不重建既有資料
+> 角色定位：**可選破冰**，不是預設、不是替人想完。守住「先逼人想」，但不讓人卡死。
+
+### 觸發與資料流（沿用 v1 ephemeral 機制）
+
+```
+人對某薄概念發散卡住 →（先強制記一次「我目前想到的」）→ 喊「破冰」
+  → 前端直打 Ollama 生成「方向×3 + 隨想」→ 顯示，標「機器提示」與人發散區隔
+  → 不自動入菌絲；人挑/改後主動保留的才落地成節點（守紅線 #2）
 ```
 
-> schema 以 `PRAGMA user_version` 控管;升級時直接重建（test data 拋棄,非生產資料）。
+### 引擎與 prompt（複用 v1，實作層 Rust → TS 前端）
 
-## 5. ⛔ 兩條實證鐵律（spike 驗證,違反即踩雷）
+- 前端 `fetch` 直打 `POST http://localhost:11434/api/generate`，`stream:false`、**`think:false` 必設**（qwen3 thinking mode 會吐 `<think>` 污染），保險再 strip `<think>…</think>`。
+- ⚠️ **CORS**：純前端跨來源打 localhost:11434 可能被擋 → 安裝引導需設 `OLLAMA_ORIGINS`（指定 app origin 或 `*`）。偵測不到 Ollama / CORS 失敗 → 火花入口降級隱藏，步0–3 照常跑。
+- prompt 模板沿用 v1 §2.1 定案版（去 `<>` 佔位 + 台灣慣用詞彙 + qwen3.5:4b temperature 0.7）。
+- 硬體自適應選模型沿用 v1：預設 `qwen3.5:4b`（6GB 地板）/ 8GB+ `qwen3:8b` / 純 CPU 降級。
 
-### 5.1 embedding：對稱用法 + e5-small
+## 4. E2 盲點偵測（機制演進至第三版）
 
-- 模型:`multilingual-e5-small`（fastembed-rs 內建,384 維,純本地）。
-- **所有文字一律加 `query: ` 前綴**（對稱）。
-- 為何不用非對稱(query/passage):spike v2 顯示分離間隙幾乎一樣（皆約 0.06）,
-  而對稱讓每個想法只存一個向量、檢索免重嵌、免混用模式。簡單勝出。
+> **E2 演進史（重要——已三次調整，別退回前兩版）**
+>
+> | 版本 | 機制 | 否證 |
+> |---|---|---|
+> | v1 空透鏡 | 透鏡留空 = 盲點 | spike 否證：AI 預填不留空 |
+> | v2 概念分布不均 | 薄概念 = 盲點 | **N0 否證（2026-05-31）**：實測「薄得合理」，AI 均勻填充不製造突兀訊號 |
+> | **v3 維度覆蓋缺口** | 人手動發散時整個漏掉的維度/概念 | 待 N2 驗 |
+>
+> **共同教訓**：訊號**不能來自 AI 輸出、也不能來自人的自陳**（兩者都照不見 unknown unknown）。
+> known unknown（人意識到的卡）≠ 盲點；只有「人手動發散時自己沒察覺的漏」才是 unknown unknown。
 
-### 5.2 檢索：相對排序,不用絕對門檻
-
-- spike 實證:e5 的 cosine 擠在 **0.79~0.89** 高窄帶。
-- **舊系統的「cosine ≥ 0.60 連邊」在此完全失效**(什麼都命中)。
-- 一律用 **top-K 相對排序**;相關與否靠排序 + 人工判,不靠絕對門檻。
-
-> spike 紀錄:`workspace/sandbox/fastembed-zh-spike/`(throwaway)。
-
-## 6. 技術棧
-
-| 角色 | 選型 |
-|---|---|
-| 殼 | Tauri v2 |
-| 後端 | Rust（fastembed-rs + rusqlite bundled）|
-| 前端 | TypeScript（vanilla-ts）|
-| embedding | ONNX via ort（fastembed 已禁用 image-models 減肥）|
-
-## 7. 里程碑
-
-| M | 內容 | 狀態 |
+| 訊號 | 算法 | 狀態 |
 |---|---|---|
-| **M0** | 地基:schema + embed + retrieve + Tauri 命令,GATE 2 綠 | ✅ |
-| **M1** | 連結 feed UI:倒想法 → 浮現候選 → 確認/否決 + 刪除/清空 | ✅ |
-| **M2** | 多向量切塊 + max-sim:長段落在 idea 層比對,顯示「對到哪一句」 | ✅ |
-| M2.5 | （視測試）撈更準:跨時間加權、排序啟發式(看間隙/elbow)、切塊 heuristic 調校 | 待定 |
-| **M3** | Tier 1.5 靈感火花:Ollama 整合 + 硬體自適應選模型 + 火花 UI + 升格 add_thought + 優雅降級 | ✅ |
-| **M4a** | Tier 2 半手動深挖:組 prompt(seed + 一階已確認連結)+ 複製 + 人工貼回存 artifact | ✅ |
-| M4b | 打包安裝檔(GitHub release):Ollama 安裝引導 + 安裝時 VRAM 偵測自動選模型 | 待做 |
+| ~~概念分布不均~~ | 數 `core_concept_ids` 計數標薄 | **N0 否證 → 降級為「結構整理」視覺，不再當盲點偵測** |
+| **維度覆蓋缺口**（主）| 步2 人手動逐透鏡 × 概念發散，標出人整個沒碰的維度 | unknown unknown，待 N2 驗 |
+| 火花召喚頻率（輔）| 統計各概念召喚火花次數 | 某概念召喚多 = 你這塊弱（A5 緩解④）|
 
-## 8. TODO / 已知債
+## 5. 資料模型（D1，spike 已驗 schema + 持久化）
 
-- 跨時間加權（M2;偏好時間遠的=被遺忘的）。
-- embedding 模型 bundle vs 首次啟動下載（目前:首次啟動下載 ~100MB）。
-- `setup()` 內模型載入會阻塞數秒 → 之後改 lazy / 背景載入 + UI 提示。
-- 命門風險:若 top-K 雜訊太多,人工判會累 → M2 必須把撈準度做起來。
+```ts
+// spike 驗證可行（robust 8/8、可追溯 72/72、0 孤兒）
+interface Sprint {
+  id: string;
+  created_at: string;
+  transcript: string;          // 逐字稿原文（不可變，紅線 #2 源頭）
+  core_concepts: { id: string; label: string }[];
+  nodes: {
+    id: string;
+    idea: string;
+    source_quote: string;      // 照抄逐字稿，回原文命中驗證（A3 緩解）
+    core_concept_ids: string[];
+    origin: "ai" | "human" | "spark";  // 區隔 AI 回填 / 人發散 / 火花保留
+    tentative?: boolean;       // 「存疑/邏輯不通先記著」標記（spike 預留，遲早要加）
+  }[];
+  lenses: {
+    fastest: { id: string; direction: string }[];
+    reverse: { id: string; direction: string }[];
+    crossdomain: { id: string; direction: string }[];
+    upstream: { id: string; direction: string }[];
+  };
+}
+```
+
+- **持久化**：IndexedDB（純前端，單瀏覽器）。早期即做 **JSON 匯出/匯入**（B1 緩解，不承諾雲端）。
+- `origin` 欄位讓積木牆能視覺區隔三種來源（A5 緩解③）。
+
+## 6. 技術棧（純前端，棄 Tauri/Rust）
+
+| 角色 | 選型 | 備註 |
+|---|---|---|
+| 前端 | TypeScript（vanilla-ts + Vite）| 複用現有 `package.json` / `vite.config.ts` 工具鏈 |
+| 持久化 | IndexedDB | 純前端，無後端 |
+| 解析 | TS robust extract（剝 ```json fence + 抓 `{…}`）| 複用 spike `parse_spike.py` 邏輯，移植 TS |
+| 火花（可選）| 前端 fetch → Ollama HTTP | 唯一本地推論，CORS 需處理 |
+| 分發 | 靜態 build（本地開 / GitHub Pages）| 未來要桌面再套 Tauri 殼（前端邏輯可移植，故選純前端）|
+
+> **不要**：Rust 後端、fastembed、SQLite（v1 為本地 embedding 而設，核心 MVP 不需要）。
+
+## 7. 舊 code 處置
+
+| 舊資產 | 處置 |
+|---|---|
+| `src-tauri/`（Rust：embed/graph/links/Tier2 synth）| **移 `legacy/` 封存**，不刪（commit `a0dd2f3` 為據）|
+| M3 火花（Ollama 邏輯 + prompt 模板）| **邏輯複用**，實作從 Rust 搬 TS 前端（見 §3）|
+| `src/`（v1 前端）| 重起 v2 前端，舊的併入 legacy 參考 |
+| README | 標「v1 連結浮現已封存於 legacy/，v2 design sprint 在 src/」（C1 緩解）|
+
+> code 搬遷 + git 操作留待實作批次處理；本文件先定方向。
+
+## 8. 里程碑（A4 優先 —— 先驗最高風險假設）
+
+| N | 內容 | 為何這個順序 |
+|---|---|---|
+| **N0** | 純前端骨架（Vite TS）+ 貼 JSON → robust 解析 → 渲染積木牆 + 概念分布條 | 最小可驗證單元 |
+| **N1** ⭐ | **A4 驗證點（2026-05-31 已驗）**：N0 跑 v2a，判定「薄得合理」→ 訊號①否證。範圍限①，賭注轉② | E2 第三次調整（見 §4）|
+| **N2** ⭐ | 步2 人手動逐透鏡 × 概念發散 UI + **維度覆蓋缺口**偵測（標人整個漏掉的維度/透鏡）| 驗 E2 v3，新生死關 |
+| N3 | 火花破冰閥（前端打 Ollama + CORS + 標機器提示 + 召喚頻率訊號）| 步2 增強 |
+| N4 | 收斂 Impact/Effort 2×2 + IndexedDB 持久化 + JSON 匯出入 | 完整一輪 + B1 緩解 |
+| N5 | 步0 逐字稿 → prompt 一鍵複製 + 回填貼入流程打磨（A2 緩解）| 降摩擦 |
+| — | 步4–5（假設解構 + 最小驗證）| **不做**，走出工具 |
+
+## 9. 待測風險假設（連 PreMortem）
+
+| 假設 | 待測問題句 | 驗證點 |
+|---|---|---|
+| **A4**（最高）| 看著概念分布圖，我會不會真的補進原本沒想到的方向？| N1，連 3 次不會 → 停損 |
+| A2 | 人工貼來貼去的摩擦，會不會大到我寧願直接用 ChatGPT？| N5 + 全程體感 |
+| A5 | 火花會不會變成偷懶逃生艙，稀釋盲點訓練？| N3 後觀察召喚頻率 |
+
+## 10. ChatGPT 回填 prompt（步0，已定案）
+
+一次往返 prompt + JSON schema 見 `workspace/sandbox/c3-synth-parse-spike/prompt-v2.md`（spike 定案，robust 8/8、可追溯 72/72）。**prompt 納入版控**（A3 緩解）。

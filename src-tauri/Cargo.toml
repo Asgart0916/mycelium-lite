@@ -25,4 +25,6 @@ serde_json = "1"
 fastembed = { version = "5.14.0", default-features = false, features = ["hf-hub-native-tls", "ort-download-binaries-native-tls"] }
 rusqlite = { version = "0.40.0", features = ["bundled"] }
 anyhow = "1.0.102"
+# Tier 1.5 火花：呼叫本地 Ollama。localhost http 不需 TLS,關掉預設特性減肥（對齊 fastembed --no-default-features 精神）。
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
 

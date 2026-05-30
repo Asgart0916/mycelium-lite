@@ -320,3 +320,97 @@ button:disabled {
   padding: 30px 0;
   font-size: 0.9rem;
 }
+
+/* Tier 1.5 火花 */
+.spark-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.spark-bar:empty {
+  display: none;
+}
+.spark-btn {
+  background: var(--panel-2);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+.spark-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #06231b;
+  border-color: var(--accent);
+}
+.spark-model {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+.spark-down {
+  font-size: 0.76rem;
+  color: var(--reject);
+  opacity: 0.85;
+}
+.spark-panel:empty {
+  display: none;
+}
+.spark-panel {
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: rgba(79, 209, 165, 0.04);
+}
+.spark-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.spark-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.spark-field {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+}
+.spark-field:focus {
+  border-color: var(--accent-dim);
+}
+.spark-row.musing .spark-field {
+  font-size: 0.88rem;
+  color: var(--text);
+  opacity: 0.92;
+}
+.spark-keep {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.spark-keep:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.spark-row.kept {
+  opacity: 0.55;
+}
+.spark-row.kept .spark-keep {
+  color: var(--accent);
+}

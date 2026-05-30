@@ -8,11 +8,23 @@ type Candidate = {
   similarity: number;
   matched_text: string;
 };
+// Tier 1.5 火花
+type SparkResult = { directions: string[]; musing: string };
+type SparkHealth = { ollama_up: boolean; model_ready: boolean };
 
 const TOP_K = 5;
 
+// 硬體自適應選模型（可手動覆寫）。安裝時依 VRAM 自動選的功能留到打包階段(M4)，目前手動下拉。
+const SPARK_MODELS = [
+  { name: "qwen3.5:4b", temp: 0.7, label: "qwen3.5:4b（6GB·預設）" },
+  { name: "qwen3:8b", temp: 0.9, label: "qwen3:8b（8GB+）" },
+];
+
 let thoughts: Thought[] = [];
 let selectedId: number | null = null;
+let sparkModel = SPARK_MODELS[0];
+let sparkUp = false; // Ollama 在跑？
+let sparkReady = false; // 目標模型已拉？
 
 // ── DOM ───────────────────────────────────────────────────────────────────
 const $ = <T extends HTMLElement>(sel: string): T =>
@@ -26,6 +38,8 @@ const countEl = $<HTMLElement>("#count");
 const seedEl = $<HTMLElement>("#seed");
 const candsEl = $<HTMLElement>("#candidates");
 const clearBtn = $<HTMLButtonElement>("#clear-btn");
+const sparkBarEl = $<HTMLElement>("#spark-bar");
+const sparkPanelEl = $<HTMLElement>("#spark-panel");
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function setStatus(msg: string, kind: "" | "ok" | "err" = "") {
@@ -131,6 +145,8 @@ async function selectThought(id: number) {
   renderThoughts();
   const t = thoughts.find((x) => x.id === id) ?? null;
   renderSeed(t);
+  renderSparkBar(t);
+  sparkPanelEl.innerHTML = "";
   try {
     const cands = await invoke<Candidate[]>("find_connections", {
       thoughtId: id,
@@ -203,6 +219,127 @@ async function clearAll() {
   }
 }
 
+// ── Tier 1.5 火花 ────────────────────────────────────────────────────────────
+// 火花是拋棄式建議：人挑/改 → 「保留」才走 add_thought 升格成新想法（守紅線 #2）。
+
+async function checkSparkHealth() {
+  try {
+    const h = await invoke<SparkHealth>("spark_health", { model: sparkModel.name });
+    sparkUp = h.ollama_up;
+    sparkReady = h.model_ready;
+  } catch {
+    sparkUp = false;
+    sparkReady = false;
+  }
+  const t = selectedId === null ? null : (thoughts.find((x) => x.id === selectedId) ?? null);
+  renderSparkBar(t);
+}
+
+function renderSparkBar(t: Thought | null) {
+  sparkBarEl.innerHTML = "";
+  if (!t) return;
+
+  const btn = document.createElement("button");
+  btn.className = "spark-btn";
+  btn.textContent = "✨ 靈感火花";
+  const healthy = sparkUp && sparkReady;
+  if (!healthy) {
+    btn.disabled = true;
+    btn.title = sparkUp
+      ? `沒拉模型：終端機執行  ollama pull ${sparkModel.name}`
+      : "未偵測到 Ollama——啟動 Ollama 以解鎖靈感火花";
+  } else {
+    btn.title = "對這個想法生成延伸方向 + 隨想";
+  }
+  btn.addEventListener("click", doSpark);
+  sparkBarEl.appendChild(btn);
+
+  const sel = document.createElement("select");
+  sel.className = "spark-model";
+  SPARK_MODELS.forEach((m, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = m.label;
+    if (m === sparkModel) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => {
+    sparkModel = SPARK_MODELS[Number(sel.value)];
+    checkSparkHealth();
+  });
+  sparkBarEl.appendChild(sel);
+
+  if (!healthy) {
+    const hint = document.createElement("span");
+    hint.className = "spark-down";
+    hint.textContent = sparkUp ? `缺 ${sparkModel.name}` : "Ollama 未啟動";
+    sparkBarEl.appendChild(hint);
+  }
+}
+
+async function doSpark() {
+  if (selectedId === null) return;
+  sparkPanelEl.innerHTML = "";
+  setStatus("火花生成中…（首次載入模型會慢幾秒）");
+  try {
+    const r = await invoke<SparkResult>("spark", {
+      thoughtId: selectedId,
+      model: sparkModel.name,
+      temperature: sparkModel.temp,
+    });
+    renderSparkResult(r);
+    setStatus("火花來了——挑你喜歡的、改一改，按「保留」", "ok");
+  } catch (e) {
+    setStatus(`火花失敗：${e}`, "err");
+  }
+}
+
+function renderSparkResult(r: SparkResult) {
+  sparkPanelEl.innerHTML = "";
+  const hint = document.createElement("div");
+  hint.className = "spark-hint";
+  hint.textContent = "拋棄式建議——挑你喜歡的、改一改，按「保留」變成新想法。";
+  sparkPanelEl.appendChild(hint);
+  r.directions.forEach((d) => sparkPanelEl.appendChild(makeKeepRow(d, "dir")));
+  if (r.musing.trim()) sparkPanelEl.appendChild(makeKeepRow(r.musing, "musing"));
+}
+
+function makeKeepRow(text: string, kind: "dir" | "musing"): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "spark-row " + kind;
+  const field = (
+    kind === "musing" ? document.createElement("textarea") : document.createElement("input")
+  ) as HTMLInputElement | HTMLTextAreaElement;
+  field.className = "spark-field";
+  field.value = text;
+  if (field instanceof HTMLTextAreaElement) field.rows = 2;
+  const btn = document.createElement("button");
+  btn.className = "spark-keep";
+  btn.textContent = "保留";
+  btn.title = "把這條（可先編輯）存成新想法";
+  btn.addEventListener("click", () => promote(field.value, row));
+  row.appendChild(field);
+  row.appendChild(btn);
+  return row;
+}
+
+async function promote(text: string, row: HTMLElement) {
+  const t = text.trim();
+  if (!t) return;
+  try {
+    await invoke<number>("add_thought", { text: t });
+    row.classList.add("kept");
+    const btn = row.querySelector(".spark-keep") as HTMLButtonElement;
+    btn.textContent = "✓ 已保留";
+    btn.disabled = true;
+    (row.querySelector(".spark-field") as HTMLInputElement).disabled = true;
+    await refreshThoughts();
+    setStatus("火花已升格成新想法", "ok");
+  } catch (e) {
+    setStatus(`保留失敗：${e}`, "err");
+  }
+}
+
 // ── wire ──────────────────────────────────────────────────────────────────
 addBtn.addEventListener("click", addThought);
 clearBtn.addEventListener("click", clearAll);
@@ -214,3 +351,4 @@ inputEl.addEventListener("keydown", (e) => {
 });
 
 refreshThoughts();
+checkSparkHealth();

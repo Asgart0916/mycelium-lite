@@ -5,6 +5,7 @@ mod chunk;
 mod db;
 mod embed;
 mod graph;
+mod spark;
 
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -118,6 +119,30 @@ fn get_graph(state: State<AppState>) -> Result<Vec<GraphEdge>, String> {
         .collect())
 }
 
+/// Tier 1.5 火花：對單一概念生成「延伸方向 + 隨想」激發靈感。
+/// async 命令——先在小作用域取出原文並釋放 DB 鎖,再 await HTTP（MutexGuard 不跨 await）。
+/// 輸出拋棄式,不入庫;人工保留才由前端走 add_thought 升格（守紅線 #2）。
+#[tauri::command]
+async fn spark(
+    state: State<'_, AppState>,
+    thought_id: i64,
+    model: String,
+    temperature: f32,
+) -> Result<spark::SparkResult, String> {
+    let text = {
+        let conn = state.db.lock().unwrap();
+        db::get_thought_text(&conn, thought_id).map_err(|e| e.to_string())?
+    }
+    .ok_or_else(|| format!("找不到想法 {thought_id}"))?;
+    spark::generate(&model, &text, temperature).await
+}
+
+/// Ollama 探活 + 目標模型是否已拉,供前端優雅降級。
+#[tauri::command]
+async fn spark_health(model: String) -> Result<spark::SparkHealth, String> {
+    Ok(spark::health(&model).await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -143,7 +168,9 @@ pub fn run() {
             list_thoughts,
             delete_thought,
             clear_all,
-            get_graph
+            get_graph,
+            spark,
+            spark_health
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

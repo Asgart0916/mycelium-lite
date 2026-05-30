@@ -114,6 +114,16 @@ pub fn list_thoughts(conn: &Connection) -> Result<Vec<Thought>> {
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// 取單一 thought 的原文（spark 火花用：只要文字,不要向量）。
+pub fn get_thought_text(conn: &Connection, id: i64) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT text FROM thoughts WHERE id=?1")?;
+    let mut rows = stmt.query(params![id])?;
+    match rows.next()? {
+        Some(r) => Ok(Some(r.get(0)?)),
+        None => Ok(None),
+    }
+}
+
 /// 一個 thought 連同它的所有句子向量（檢索池的單位）。
 #[derive(Debug, Clone)]
 pub struct ThoughtChunks {

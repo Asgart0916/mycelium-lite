@@ -1,0 +1,150 @@
+//! mycelium-lite 後端入口。
+//! 資料流：add_thought（嵌入+存）→ find_connections（即時 top-K）→ confirm/reject（落地菌絲）。
+
+mod chunk;
+mod db;
+mod embed;
+mod graph;
+
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rusqlite::Connection;
+use tauri::{Manager, State};
+
+use embed::Embedder;
+
+struct AppState {
+    db: Mutex<Connection>,
+    embedder: Mutex<Embedder>,
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
+
+/// 倒進一個想法：切塊 → 各句嵌入 → 存進不可變的 thoughts + chunks。回傳新 id。
+#[tauri::command]
+fn add_thought(state: State<AppState>, text: String) -> Result<i64, String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Err("想法不能是空的".into());
+    }
+    let pieces = chunk::chunk_text(&text);
+    let vectors = {
+        let mut emb = state.embedder.lock().unwrap();
+        emb.embed_batch(&pieces).map_err(|e| e.to_string())?
+    };
+    let conn = state.db.lock().unwrap();
+    let id = db::insert_thought(&conn, &text, now_ms()).map_err(|e| e.to_string())?;
+    for (seq, (ptext, vec)) in pieces.iter().zip(vectors).enumerate() {
+        db::insert_chunk(&conn, id, seq as i64, ptext, &vec).map_err(|e| e.to_string())?;
+    }
+    Ok(id)
+}
+
+/// 為某想法即時撈出最相關的 top-K 候選（max-sim,排除已決定過的）。
+#[tauri::command]
+fn find_connections(
+    state: State<AppState>,
+    thought_id: i64,
+    top_k: usize,
+) -> Result<Vec<graph::Candidate>, String> {
+    let conn = state.db.lock().unwrap();
+    let pool = db::all_thought_chunks(&conn).map_err(|e| e.to_string())?;
+    let seed = pool
+        .iter()
+        .find(|t| t.id == thought_id)
+        .ok_or_else(|| format!("找不到想法 {thought_id}"))?;
+    let seed_vecs: Vec<Vec<f32>> = seed.chunks.iter().map(|(_, v)| v.clone()).collect();
+    let exclude = db::decided_with(&conn, thought_id).map_err(|e| e.to_string())?;
+    Ok(graph::find_candidates(
+        &seed_vecs, thought_id, &pool, &exclude, top_k,
+    ))
+}
+
+/// 確認一條連結 → 菌絲落地。
+#[tauri::command]
+fn confirm_link(state: State<AppState>, src: i64, dst: i64, similarity: f32) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::decide_link(&conn, src, dst, similarity, "confirmed", now_ms()).map_err(|e| e.to_string())
+}
+
+/// 否決一條連結 → 不再浮現。
+#[tauri::command]
+fn reject_link(state: State<AppState>, src: i64, dst: i64, similarity: f32) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::decide_link(&conn, src, dst, similarity, "rejected", now_ms()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_thoughts(state: State<AppState>) -> Result<Vec<db::Thought>, String> {
+    let conn = state.db.lock().unwrap();
+    db::list_thoughts(&conn).map_err(|e| e.to_string())
+}
+
+/// 刪除一個想法（含其連結）。
+#[tauri::command]
+fn delete_thought(state: State<AppState>, thought_id: i64) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::delete_thought(&conn, thought_id).map_err(|e| e.to_string())
+}
+
+/// 清空全部（測試重置）。
+#[tauri::command]
+fn clear_all(state: State<AppState>) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::clear_all(&conn).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct GraphEdge {
+    src: i64,
+    dst: i64,
+    similarity: f32,
+}
+
+/// 已確認的連結 = 整面菌絲牆（M1 前端拿來呈現）。
+#[tauri::command]
+fn get_graph(state: State<AppState>) -> Result<Vec<GraphEdge>, String> {
+    let conn = state.db.lock().unwrap();
+    let links = db::confirmed_links(&conn).map_err(|e| e.to_string())?;
+    Ok(links
+        .into_iter()
+        .map(|(src, dst, similarity)| GraphEdge { src, dst, similarity })
+        .collect())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let dir = app.path().app_data_dir().expect("無法取得 app data 目錄");
+            std::fs::create_dir_all(&dir).ok();
+            let db_path = dir.join("mycelium.db");
+            let conn = db::open(db_path.to_str().expect("路徑非 UTF-8")).expect("開啟資料庫失敗");
+            // 首次啟動會下載 e5-small 模型（~100MB）並載入,故 setup 會阻塞數秒。
+            let embedder = Embedder::new().expect("初始化 embedder 失敗");
+            app.manage(AppState {
+                db: Mutex::new(conn),
+                embedder: Mutex::new(embedder),
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            add_thought,
+            find_connections,
+            confirm_link,
+            reject_link,
+            list_thoughts,
+            delete_thought,
+            clear_all,
+            get_graph
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

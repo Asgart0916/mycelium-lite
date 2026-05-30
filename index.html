@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>mycelium-lite</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>mycelium<span class="dot">·</span>lite</h1>
+        <p class="tagline">把你忘掉的想法，重新連起來</p>
+      </header>
+
+      <section class="composer">
+        <textarea
+          id="input"
+          rows="2"
+          placeholder="倒一個想法進來…（Ctrl+Enter 送出）"
+        ></textarea>
+        <div class="composer-actions">
+          <span id="status" class="status"></span>
+          <button id="add-btn">倒進來</button>
+        </div>
+      </section>
+
+      <div class="panes">
+        <aside class="sidebar">
+          <div class="sidebar-head">
+            <h2>想法 <span id="count" class="count">0</span></h2>
+            <button id="clear-btn" class="ghost-btn" title="清空全部（測試重置）">
+              清空
+            </button>
+          </div>
+          <ul id="thought-list"></ul>
+        </aside>
+        <main class="feed">
+          <div id="seed" class="seed empty">← 選一個想法，看它浮現的連結</div>
+          <div id="candidates"></div>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

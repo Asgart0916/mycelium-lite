@@ -11,6 +11,14 @@ type Candidate = {
 // Tier 1.5 火花
 type SparkResult = { directions: string[]; musing: string };
 type SparkHealth = { ollama_up: boolean; model_ready: boolean };
+// Tier 2 深度合成（人工貼回的 ChatGPT Plus 結果）
+type Artifact = {
+  id: number;
+  thought_id: number;
+  prompt: string;
+  response: string;
+  created_at: number;
+};
 
 const TOP_K = 5;
 
@@ -40,6 +48,9 @@ const candsEl = $<HTMLElement>("#candidates");
 const clearBtn = $<HTMLButtonElement>("#clear-btn");
 const sparkBarEl = $<HTMLElement>("#spark-bar");
 const sparkPanelEl = $<HTMLElement>("#spark-panel");
+const synthBarEl = $<HTMLElement>("#synth-bar");
+const synthPanelEl = $<HTMLElement>("#synth-panel");
+const artifactListEl = $<HTMLElement>("#artifact-list");
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 function setStatus(msg: string, kind: "" | "ok" | "err" = "") {
@@ -147,6 +158,9 @@ async function selectThought(id: number) {
   renderSeed(t);
   renderSparkBar(t);
   sparkPanelEl.innerHTML = "";
+  renderSynthBar(t);
+  synthPanelEl.innerHTML = "";
+  loadArtifacts(id);
   try {
     const cands = await invoke<Candidate[]>("find_connections", {
       thoughtId: id,
@@ -196,6 +210,9 @@ async function deleteThought(id: number) {
       selectedId = null;
       renderSeed(null);
       candsEl.innerHTML = "";
+      synthBarEl.innerHTML = "";
+      synthPanelEl.innerHTML = "";
+      artifactListEl.innerHTML = "";
     }
     await refreshThoughts();
     setStatus("已刪除", "ok");
@@ -212,6 +229,9 @@ async function clearAll() {
     selectedId = null;
     renderSeed(null);
     candsEl.innerHTML = "";
+    synthBarEl.innerHTML = "";
+    synthPanelEl.innerHTML = "";
+    artifactListEl.innerHTML = "";
     await refreshThoughts();
     setStatus("已清空", "ok");
   } catch (e) {
@@ -337,6 +357,117 @@ async function promote(text: string, row: HTMLElement) {
     setStatus("火花已升格成新想法", "ok");
   } catch (e) {
     setStatus(`保留失敗：${e}`, "err");
+  }
+}
+
+// ── Tier 2 深度合成 ──────────────────────────────────────────────────────────
+// ⛔ 紅線 #5：深度推理走 ChatGPT Plus 人工複製貼上，前端只組 prompt + 存回填，不呼叫任何 API。
+
+function renderSynthBar(t: Thought | null) {
+  synthBarEl.innerHTML = "";
+  if (!t) return;
+  const btn = document.createElement("button");
+  btn.className = "synth-btn";
+  btn.textContent = "🔬 深度合成";
+  btn.title = "組一段含此想法 + 已確認連結的 prompt，貼到 ChatGPT Plus 深挖";
+  btn.addEventListener("click", doSynth);
+  synthBarEl.appendChild(btn);
+}
+
+async function doSynth() {
+  if (selectedId === null) return;
+  setStatus("組深挖 prompt…");
+  try {
+    const prompt = await invoke<string>("synthesis_prompt", { thoughtId: selectedId });
+    renderSynthWork(prompt);
+    setStatus("複製 prompt → 貼進 ChatGPT Plus → 把回覆貼回來存檔", "ok");
+  } catch (e) {
+    setStatus(`組 prompt 失敗：${e}`, "err");
+  }
+}
+
+function renderSynthWork(prompt: string) {
+  synthPanelEl.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "synth-work";
+  wrap.innerHTML = `
+    <div class="synth-hint">深度合成走 ChatGPT Plus 人工貼，這裡不呼叫 API。</div>
+    <label class="synth-label">① 複製這段 prompt</label>
+    <textarea class="synth-prompt" readonly rows="8"></textarea>
+    <div class="synth-row"><button class="synth-copy">📋 複製到剪貼簿</button></div>
+    <label class="synth-label">② 把 ChatGPT Plus 的回覆貼回來</label>
+    <textarea class="synth-response" rows="6" placeholder="貼上深度合成的回覆…"></textarea>
+    <div class="synth-row"><button class="synth-save">儲存合成結果</button></div>`;
+  (wrap.querySelector(".synth-prompt") as HTMLTextAreaElement).value = prompt;
+  const respEl = wrap.querySelector(".synth-response") as HTMLTextAreaElement;
+  wrap.querySelector(".synth-copy")!.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setStatus("已複製——貼進 ChatGPT Plus", "ok");
+    } catch {
+      setStatus("複製失敗，請手動選取複製", "err");
+    }
+  });
+  wrap.querySelector(".synth-save")!.addEventListener("click", () =>
+    saveArtifact(prompt, respEl.value),
+  );
+  synthPanelEl.appendChild(wrap);
+}
+
+async function saveArtifact(prompt: string, response: string) {
+  if (selectedId === null) return;
+  if (!response.trim()) {
+    setStatus("貼回的內容是空的", "err");
+    return;
+  }
+  try {
+    await invoke<number>("save_artifact", { thoughtId: selectedId, prompt, response });
+    synthPanelEl.innerHTML = "";
+    setStatus("已存深度合成結果", "ok");
+    await loadArtifacts(selectedId);
+  } catch (e) {
+    setStatus(`儲存失敗：${e}`, "err");
+  }
+}
+
+async function loadArtifacts(id: number) {
+  try {
+    const arts = await invoke<Artifact[]>("list_artifacts", { thoughtId: id });
+    renderArtifacts(arts);
+  } catch (e) {
+    setStatus(`載入合成紀錄失敗：${e}`, "err");
+  }
+}
+
+function renderArtifacts(arts: Artifact[]) {
+  artifactListEl.innerHTML = "";
+  if (arts.length === 0) return;
+  const head = document.createElement("div");
+  head.className = "artifact-head";
+  head.textContent = `深度合成紀錄（${arts.length}）`;
+  artifactListEl.appendChild(head);
+  for (const a of arts) {
+    const card = document.createElement("div");
+    card.className = "artifact";
+    card.innerHTML = `
+      <div class="artifact-meta">
+        <span>${relTime(a.created_at)}</span>
+        <button class="artifact-del" title="刪除這份紀錄">✕</button>
+      </div>
+      <div class="artifact-resp"></div>`;
+    (card.querySelector(".artifact-resp") as HTMLElement).textContent = a.response;
+    card.querySelector(".artifact-del")!.addEventListener("click", () => removeArtifact(a.id));
+    artifactListEl.appendChild(card);
+  }
+}
+
+async function removeArtifact(id: number) {
+  try {
+    await invoke("delete_artifact", { artifactId: id });
+    if (selectedId !== null) await loadArtifacts(selectedId);
+    setStatus("已刪除合成紀錄", "ok");
+  } catch (e) {
+    setStatus(`刪除失敗：${e}`, "err");
   }
 }
 

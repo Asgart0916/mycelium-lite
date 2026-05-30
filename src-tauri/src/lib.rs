@@ -6,6 +6,7 @@ mod db;
 mod embed;
 mod graph;
 mod spark;
+mod synth;
 
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -143,6 +144,52 @@ async fn spark_health(model: String) -> Result<spark::SparkHealth, String> {
     Ok(spark::health(&model).await)
 }
 
+/// Tier 2 深挖：組出「seed + 一階已確認連結」的 prompt 給前端複製,人工貼進 ChatGPT Plus。
+/// ⛔ 紅線 #5：只組字串,不呼叫任何 API。
+#[tauri::command]
+fn synthesis_prompt(state: State<AppState>, thought_id: i64) -> Result<String, String> {
+    let conn = state.db.lock().unwrap();
+    let seed = db::get_thought_text(&conn, thought_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("找不到想法 {thought_id}"))?;
+    let neighbors: Vec<String> = db::confirmed_neighbors(&conn, thought_id)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|(_, text)| text)
+        .collect();
+    Ok(synth::build_synthesis_prompt(&seed, &neighbors))
+}
+
+/// 存一份人工貼回的深度合成結果（關聯到 seed 想法;不覆寫 thoughts,守紅線 #2）。
+#[tauri::command]
+fn save_artifact(
+    state: State<AppState>,
+    thought_id: i64,
+    prompt: String,
+    response: String,
+) -> Result<i64, String> {
+    let response = response.trim().to_string();
+    if response.is_empty() {
+        return Err("貼回的內容不能是空的".into());
+    }
+    let conn = state.db.lock().unwrap();
+    db::insert_artifact(&conn, thought_id, &prompt, &response, now_ms()).map_err(|e| e.to_string())
+}
+
+/// 列出某想法已存的深度合成 artifact。
+#[tauri::command]
+fn list_artifacts(state: State<AppState>, thought_id: i64) -> Result<Vec<db::Artifact>, String> {
+    let conn = state.db.lock().unwrap();
+    db::list_artifacts(&conn, thought_id).map_err(|e| e.to_string())
+}
+
+/// 刪一份 artifact（可逆操作）。
+#[tauri::command]
+fn delete_artifact(state: State<AppState>, artifact_id: i64) -> Result<(), String> {
+    let conn = state.db.lock().unwrap();
+    db::delete_artifact(&conn, artifact_id).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -170,7 +217,11 @@ pub fn run() {
             clear_all,
             get_graph,
             spark,
-            spark_health
+            spark_health,
+            synthesis_prompt,
+            save_artifact,
+            list_artifacts,
+            delete_artifact
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

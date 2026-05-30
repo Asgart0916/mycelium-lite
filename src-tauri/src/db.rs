@@ -21,7 +21,8 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     let ver: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
     if ver < SCHEMA_VERSION {
         conn.execute_batch(
-            "DROP TABLE IF EXISTS links;
+            "DROP TABLE IF EXISTS artifacts;
+             DROP TABLE IF EXISTS links;
              DROP TABLE IF EXISTS chunks;
              DROP TABLE IF EXISTS thoughts;",
         )?;
@@ -50,6 +51,16 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL,
             UNIQUE(src, dst)
         );
+        -- M4 Tier 2：人工貼回的 ChatGPT 深度合成結果。prompt=當下組的深挖提示,response=人工貼回。
+        -- 刻意用 IF NOT EXISTS 補建、不 bump user_version → 既有 thoughts/chunks/links 不被重建,實測資料保留。
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            thought_id INTEGER NOT NULL REFERENCES thoughts(id),
+            prompt     TEXT    NOT NULL,
+            response   TEXT    NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifacts_thought ON artifacts(thought_id);
         ",
     )?;
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -214,8 +225,72 @@ pub fn confirmed_links(conn: &Connection) -> Result<Vec<(i64, i64, f32)>> {
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// 跟某想法「已確認連結」的一階鄰居原文（Tier 2 深挖 prompt 的素材）。
+/// links 已 (min,max) 正規化,故對象 = src/dst 中不等於自己的那端。
+pub fn confirmed_neighbors(conn: &Connection, thought_id: i64) -> Result<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.text
+         FROM links l
+         JOIN thoughts t ON t.id = CASE WHEN l.src = ?1 THEN l.dst ELSE l.src END
+         WHERE (l.src = ?1 OR l.dst = ?1) AND l.status = 'confirmed'
+         ORDER BY t.created_at",
+    )?;
+    let rows = stmt.query_map(params![thought_id], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+// ── artifacts（M4 Tier 2：人工貼回的深度合成）────────────────────────────────
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Artifact {
+    pub id: i64,
+    pub thought_id: i64,
+    pub prompt: String,
+    pub response: String,
+    pub created_at: i64,
+}
+
+pub fn insert_artifact(
+    conn: &Connection,
+    thought_id: i64,
+    prompt: &str,
+    response: &str,
+    now: i64,
+) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO artifacts (thought_id, prompt, response, created_at) VALUES (?1,?2,?3,?4)",
+        params![thought_id, prompt, response, now],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn list_artifacts(conn: &Connection, thought_id: i64) -> Result<Vec<Artifact>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, thought_id, prompt, response, created_at
+         FROM artifacts WHERE thought_id = ?1 ORDER BY created_at DESC",
+    )?;
+    let rows = stmt.query_map(params![thought_id], |r| {
+        Ok(Artifact {
+            id: r.get(0)?,
+            thought_id: r.get(1)?,
+            prompt: r.get(2)?,
+            response: r.get(3)?,
+            created_at: r.get(4)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// 刪一個 artifact（前端可逆操作）。
+pub fn delete_artifact(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute("DELETE FROM artifacts WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
 /// 刪除一個想法 + 它的句子 + 它的連結。
 pub fn delete_thought(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute("DELETE FROM artifacts WHERE thought_id=?1", params![id])?;
     conn.execute("DELETE FROM links WHERE src=?1 OR dst=?1", params![id])?;
     conn.execute("DELETE FROM chunks WHERE thought_id=?1", params![id])?;
     conn.execute("DELETE FROM thoughts WHERE id=?1", params![id])?;
@@ -223,7 +298,9 @@ pub fn delete_thought(conn: &Connection, id: i64) -> Result<()> {
 }
 
 pub fn clear_all(conn: &Connection) -> Result<()> {
-    conn.execute_batch("DELETE FROM links; DELETE FROM chunks; DELETE FROM thoughts;")?;
+    conn.execute_batch(
+        "DELETE FROM artifacts; DELETE FROM links; DELETE FROM chunks; DELETE FROM thoughts;",
+    )?;
     Ok(())
 }
 
@@ -309,5 +386,41 @@ mod tests {
         decide_link(&conn, a, b, 0.5, "rejected", 10).unwrap();
         decide_link(&conn, a, b, 0.7, "confirmed", 11).unwrap();
         assert_eq!(confirmed_links(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn confirmed_neighbors_only_returns_confirmed() {
+        let conn = mem();
+        let a = add(&conn, "種子", &[1.0], 1);
+        let b = add(&conn, "已確認鄰居", &[1.0], 2);
+        let c = add(&conn, "被否決的", &[1.0], 3);
+        decide_link(&conn, b, a, 0.9, "confirmed", 10).unwrap(); // 反向也要找得到（已正規化）
+        decide_link(&conn, a, c, 0.8, "rejected", 11).unwrap();
+        let n = confirmed_neighbors(&conn, a).unwrap();
+        assert_eq!(n.len(), 1);
+        assert_eq!(n[0].0, b);
+        assert_eq!(n[0].1, "已確認鄰居");
+    }
+
+    #[test]
+    fn artifact_insert_list_delete() {
+        let conn = mem();
+        let a = add(&conn, "種子", &[1.0], 1);
+        let id = insert_artifact(&conn, a, "深挖 prompt", "ChatGPT 回覆", 100).unwrap();
+        let list = list_artifacts(&conn, a).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].prompt, "深挖 prompt");
+        assert_eq!(list[0].response, "ChatGPT 回覆");
+        delete_artifact(&conn, id).unwrap();
+        assert!(list_artifacts(&conn, a).unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_thought_also_clears_artifacts() {
+        let conn = mem();
+        let a = add(&conn, "種子", &[1.0], 1);
+        insert_artifact(&conn, a, "p", "r", 100).unwrap();
+        delete_thought(&conn, a).unwrap();
+        assert!(list_artifacts(&conn, a).unwrap().is_empty());
     }
 }

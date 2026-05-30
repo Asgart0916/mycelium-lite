@@ -414,3 +414,124 @@ button:disabled {
 .spark-row.kept .spark-keep {
   color: var(--accent);
 }
+
+/* Tier 2 深度合成（人工貼 ChatGPT Plus）*/
+.synth-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+.synth-bar:empty {
+  display: none;
+}
+.synth-btn {
+  background: var(--panel-2);
+  border-color: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+.synth-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #06231b;
+  border-color: var(--accent);
+}
+.synth-panel:empty {
+  display: none;
+}
+.synth-work {
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  background: rgba(79, 209, 165, 0.04);
+}
+.synth-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.synth-label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  margin: 8px 0 5px;
+}
+.synth-prompt,
+.synth-response {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+.synth-prompt:focus,
+.synth-response:focus {
+  border-color: var(--accent-dim);
+}
+.synth-prompt {
+  color: var(--muted);
+}
+.synth-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 6px 0 4px;
+}
+.synth-save {
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+  color: #eafff7;
+  font-weight: 600;
+}
+.synth-save:hover:not(:disabled) {
+  background: var(--accent);
+  color: #06231b;
+}
+
+/* artifacts 列表 */
+.artifact-list:empty {
+  display: none;
+}
+.artifact-head {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 6px 0 8px;
+}
+.artifact {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.artifact-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.artifact-del {
+  padding: 1px 7px;
+  font-size: 0.72rem;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.artifact-del:hover:not(:disabled) {
+  border-color: var(--reject);
+  color: var(--reject);
+}
+.artifact-resp {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

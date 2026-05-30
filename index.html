@@ -10,41 +10,23 @@
     <div id="app">
       <header>
         <h1>mycelium<span class="dot">·</span>lite</h1>
-        <p class="tagline">把你忘掉的想法，重新連起來</p>
+        <p class="tagline">逐字稿 → 積木牆 + 概念分布，照見你的盲點</p>
       </header>
 
       <section class="composer">
-        <textarea
-          id="input"
-          rows="2"
-          placeholder="倒一個想法進來…（Ctrl+Enter 送出）"
-        ></textarea>
+        <label class="field-label">① 逐字稿（可選，貼了才驗 source_quote 可追溯）</label>
+        <textarea id="transcript-input" rows="3" placeholder="把這次 brainstorm 的逐字稿貼這裡…"></textarea>
+
+        <label class="field-label">② ChatGPT 回填的 JSON</label>
+        <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 一次往返回填的 JSON（容錯：```json 包裹、前後贅字都能解析）。Ctrl+Enter 解析'></textarea>
+
         <div class="composer-actions">
           <span id="status" class="status"></span>
-          <button id="add-btn">倒進來</button>
+          <button id="parse-btn">解析積木牆</button>
         </div>
       </section>
 
-      <div class="panes">
-        <aside class="sidebar">
-          <div class="sidebar-head">
-            <h2>想法 <span id="count" class="count">0</span></h2>
-            <button id="clear-btn" class="ghost-btn" title="清空全部（測試重置）">
-              清空
-            </button>
-          </div>
-          <ul id="thought-list"></ul>
-        </aside>
-        <main class="feed">
-          <div id="seed" class="seed empty">← 選一個想法，看它浮現的連結</div>
-          <div id="spark-bar" class="spark-bar"></div>
-          <div id="spark-panel" class="spark-panel"></div>
-          <div id="candidates"></div>
-          <div id="synth-bar" class="synth-bar"></div>
-          <div id="synth-panel" class="synth-panel"></div>
-          <div id="artifact-list" class="artifact-list"></div>
-        </main>
-      </div>
+      <main id="output"></main>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

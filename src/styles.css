@@ -33,9 +33,9 @@ body {
 }
 
 #app {
-  max-width: 1180px;
+  max-width: 1680px;
   margin: 0 auto;
-  padding: 2rem 1.75rem 4rem;
+  padding: 2rem 2.5rem 4rem;
 }
 
 header {
@@ -651,7 +651,7 @@ header .dot {
 .graph-canvas {
   position: relative;
   width: 100%;
-  height: 520px;
+  height: clamp(520px, 72vh, 820px); /* 吃滿 1080p 縱向，小螢幕保底 520 */
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -810,7 +810,7 @@ header .dot {
 /* ── 步3 收斂 Impact/Effort 2×2 ──────────────────────────────────── */
 .quad-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 260px minmax(0, 1040px); /* 畫布上限 1040，寬螢幕不被拉太扁 */
   gap: 16px;
   align-items: start;
 }
@@ -830,7 +830,7 @@ header .dot {
   font-size: 12px;
 }
 .quad-list {
-  max-height: 420px;
+  max-height: clamp(420px, 64vh, 680px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -866,7 +866,7 @@ header .dot {
 }
 .quad-canvas {
   position: relative;
-  height: 460px;
+  height: clamp(460px, 64vh, 680px);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;

@@ -259,27 +259,149 @@ header .dot {
   padding: 0 5px;
 }
 
-/* ── 四透鏡 ─────────────────────────────────────────────── */
-.lens-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+.wall-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: -0.25rem 0 0.75rem;
 }
-.lens-col {
+
+/* ── 步2：自己多想幾個 ─────────────────────────────────────── */
+.diverge-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+}
+.diverge-grid {
+  display: grid;
+  gap: 6px;
+  align-items: stretch;
+}
+.dv-lenshead {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 8px;
 }
-.lens-head {
+.dv-lens-title {
   font-weight: 600;
   font-size: 13px;
   color: var(--accent);
-  margin-bottom: 8px;
 }
-.lens-item {
+.dv-lens-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+.dv-ai {
+  margin-top: 8px;
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+.dv-ai-label {
+  font-size: 10px;
+  color: var(--warn);
+  margin-bottom: 3px;
+}
+.dv-ai-item {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+.dv-conceptlabel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 8px;
+}
+.dv-cell {
+  display: flex;
+  border-radius: 6px;
+}
+.dv-input {
+  width: 100%;
+  min-height: 48px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+.dv-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.dv-lenshead.gap-lens {
+  background: rgba(239, 159, 39, 0.12);
+  border-color: var(--thin);
+}
+.dv-cell.gap-lens {
+  border: 1px solid var(--thin);
+  background: rgba(239, 159, 39, 0.12);
+}
+.dv-cell.gap-concept {
+  border: 1px solid var(--thin);
+  background: rgba(239, 159, 39, 0.08);
+}
+.dv-conceptlabel.gap-concept {
+  color: var(--thin);
+}
+
+/* ── 步2 結果：彙總漏掉的角度／主題 ──────────────────────────── */
+.diverge-actions {
+  margin-top: 14px;
+}
+.reveal-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.reveal-btn:hover {
+  opacity: 0.85;
+}
+.diverge-result {
+  margin-top: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.result-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.result-ok {
+  font-size: 13px;
+  color: var(--accent);
+  margin: 0;
+}
+.result-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.result-lens {
+  color: var(--thin);
+  font-size: 13px;
+  margin: 4px 0;
+}
+.result-concept {
+  color: var(--text);
+  font-size: 13px;
+  margin: 4px 0;
+}
+.result-foot {
   font-size: 12px;
   color: var(--text-dim);
-  padding: 5px 0;
-  border-top: 1px solid var(--border);
+  margin: 10px 0 0;
 }

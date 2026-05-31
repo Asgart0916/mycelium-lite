@@ -10,19 +10,19 @@
     <div id="app">
       <header>
         <h1>mycelium<span class="dot">·</span>lite</h1>
-        <p class="tagline">逐字稿 → 積木牆 + 概念分布，照見你的盲點</p>
+        <p class="tagline">逐字稿 → 想法牆，再自己多想幾個，照見你沒想到的角度</p>
       </header>
 
       <section class="composer">
-        <label class="field-label">① 逐字稿（可選，貼了才驗 source_quote 可追溯）</label>
+        <label class="field-label">① 逐字稿（可選，貼了才能核對點子出處）</label>
         <textarea id="transcript-input" rows="3" placeholder="把這次 brainstorm 的逐字稿貼這裡…"></textarea>
 
-        <label class="field-label">② ChatGPT 回填的 JSON</label>
-        <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 一次往返回填的 JSON（容錯：```json 包裹、前後贅字都能解析）。Ctrl+Enter 解析'></textarea>
+        <label class="field-label">② 貼上 ChatGPT 整理好的 JSON</label>
+        <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 回傳的 JSON（前後有贅字、```json 包裹都沒關係，會自動容錯）。Ctrl+Enter 整理'></textarea>
 
         <div class="composer-actions">
           <span id="status" class="status"></span>
-          <button id="parse-btn">解析積木牆</button>
+          <button id="parse-btn">整理成想法牆</button>
         </div>
       </section>
 

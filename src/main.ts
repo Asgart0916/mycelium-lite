@@ -1,7 +1,7 @@
 // N0 wire（純前端，無後端、無 AI 呼叫）。
 // 流程步0–1：人貼 ChatGPT 回填 JSON（+ 可選逐字稿）→ 解析 → 積木牆 + 概念分布。
 import { parseSprint, validateSprint } from "./parse";
-import { renderBricks, renderDistribution, renderLenses, renderReport } from "./render";
+import { mountDiverge, renderBricks, renderDistribution, renderReport } from "./render";
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector(sel) as T;
 
@@ -19,7 +19,7 @@ function setStatus(msg: string, kind: "" | "ok" | "err" = "") {
 function run() {
   const raw = jsonEl.value.trim();
   if (!raw) {
-    setStatus("先貼上 ChatGPT 回填的 JSON", "err");
+    setStatus("先貼上 ChatGPT 給的 JSON", "err");
     return;
   }
   let sprint: ReturnType<typeof parseSprint>;
@@ -37,12 +37,12 @@ function run() {
     renderReport(report),
     renderDistribution(report),
     renderBricks(sprint, report),
-    renderLenses(sprint),
+    mountDiverge(sprint),
   );
 
-  const trace = report.trace ? `，可追溯 ${report.trace.matched}/${report.trace.total}` : "";
+  const trace = report.trace ? `，出處對得上 ${report.trace.matched}/${report.trace.total}` : "";
   const bad = report.schemaErrors.length > 0 || report.orphanConcepts.length > 0;
-  setStatus(`${report.conceptCount} 概念 / ${report.nodeCount} 節點${trace}`, bad ? "err" : "ok");
+  setStatus(`${report.conceptCount} 主題 / ${report.nodeCount} 點子${trace}`, bad ? "err" : "ok");
 }
 
 parseBtn.addEventListener("click", run);

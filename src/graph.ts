@@ -4,15 +4,23 @@
 // 點擊主題高亮子圖、更新按鈕收割步2新靈感重佈局。
 // 純資料建模在 graph-model.ts（可單測）；本檔只管 cytoscape runtime 與互動。
 
-import cytoscape from "cytoscape";
-import fcose from "cytoscape-fcose";
+import type cytoscape from "cytoscape";
 import { type ExtraNode, type IdeaOrigin, buildElements } from "./graph-model";
 import type { RawSprint } from "./parse";
 
 export type { ExtraNode, HarvestRow } from "./graph-model";
 export { harvestNodes, buildElements, assignConceptColors } from "./graph-model";
 
-cytoscape.use(fcose as cytoscape.Ext);
+// cytoscape + fcose（~500KB）動態載入：首屏不背，進步2 建圖時才抓。型別走 import type（編譯期抹除）。
+type CytoscapeFn = (opts: cytoscape.CytoscapeOptions) => cytoscape.Core;
+let cyLib: CytoscapeFn | null = null;
+async function loadCytoscape(): Promise<CytoscapeFn> {
+  if (cyLib) return cyLib;
+  const [cy, fcose] = await Promise.all([import("cytoscape"), import("cytoscape-fcose")]);
+  cy.default.use(fcose.default as cytoscape.Ext);
+  cyLib = cy.default;
+  return cyLib;
+}
 
 const ORIGIN_LABEL: Record<IdeaOrigin, string> = {
   ai: "AI 回填",
@@ -242,12 +250,15 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
     cy.animate({ fit: { eles, padding: 60 } });
   });
 
-  const render = (extra: ExtraNode[]): void => {
+  let loading: Promise<CytoscapeFn> | null = null;
+  const render = async (extra: ExtraNode[]): Promise<void> => {
+    if (!loading) loading = loadCytoscape();
+    const cytoscapeFn = await loading;
     if (cy) {
       cy.elements().remove();
       cy.add(buildElements(sprint, extra));
     } else {
-      cy = cytoscape({
+      cy = cytoscapeFn({
         container: canvas,
         elements: buildElements(sprint, extra),
         style: graphStyle(),
@@ -263,12 +274,12 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
   };
 
   updateBtn.addEventListener("click", () => {
-    render(harvest());
+    void render(harvest());
   });
 
   return {
     el: box,
-    activate: () => render([]),
+    activate: () => void render([]),
     onShow: () => {
       if (!cy) return;
       cy.resize(); // 面板從隱藏轉顯示，容器尺寸變了 → 重算

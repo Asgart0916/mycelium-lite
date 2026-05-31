@@ -116,49 +116,49 @@ function renderWorking() {
   const wall = document.createElement("div");
   wall.append(renderReport(report), renderDistribution(report), renderBricks(sprint, report));
 
-  // 關係圖在「發散」「收斂」兩步並排出現＝同一個 cytoscape 實例，切步時搬移 graph.el 到對應槽
-  const slot = (panel: HTMLElement, work: HTMLElement, mod: string): HTMLElement => {
-    const split = document.createElement("div");
-    split.className = `split ${mod}`;
-    const graphSlot = document.createElement("div");
-    graphSlot.className = "split-graph";
-    const workSlot = document.createElement("div");
-    workSlot.className = "split-work";
-    workSlot.append(work);
-    split.append(graphSlot, workSlot);
-    panel.append(split);
-    return graphSlot;
-  };
+  // 步2 發散：左側可塌縮 sidebar（發散輸入）+ 右側大關係圖。圖是主角，sidebar 收起後更寬。
   const divergePanel = document.createElement("div");
+  const workSplit = document.createElement("div");
+  workSplit.className = "work-split";
+  const sidebar = document.createElement("div");
+  sidebar.className = "work-sidebar";
+  sidebar.append(diverge.el);
+  const workMain = document.createElement("div");
+  workMain.className = "work-main";
+  const collapseBtn = document.createElement("button");
+  collapseBtn.type = "button";
+  collapseBtn.className = "sidebar-toggle";
+  collapseBtn.textContent = "◀ 收起輸入欄";
+  collapseBtn.addEventListener("click", () => {
+    const collapsed = workSplit.classList.toggle("collapsed");
+    collapseBtn.textContent = collapsed ? "▶ 展開輸入欄" : "◀ 收起輸入欄";
+    graph.onShow(); // 寬度變了 → cytoscape 重算尺寸並重 fit
+  });
+  workMain.append(collapseBtn, graph.el); // 關係圖只在步2 出現，固定掛這
+  workSplit.append(sidebar, workMain);
+  divergePanel.append(workSplit);
+
+  // 步3 收斂：2×2 當寬主區（候選清單 + 畫布），不放並排圖
   const quadPanel = document.createElement("div");
-  const divergeSlot = slot(divergePanel, diverge.el, "split--diverge");
-  const quadSlot = slot(quadPanel, quad.el, "split--quad");
-  divergeSlot.append(graph.el); // 先放發散槽，activate 才有 DOM 容器
+  quadPanel.append(quad.el);
 
   const stepper = mountStepper([
     { label: "想法牆", panel: wall },
     {
       label: "發散：自己多想",
       panel: divergePanel,
-      onShow: () => {
-        divergeSlot.append(graph.el);
-        graph.onShow();
-      },
+      onShow: () => graph.onShow(),
     },
     {
       label: "收斂：選方向",
       panel: quadPanel,
-      onShow: () => {
-        quadSlot.append(graph.el);
-        graph.onShow();
-        quad.onShow();
-      },
+      onShow: () => quad.onShow(),
     },
   ]);
 
   outEl.innerHTML = "";
   outEl.append(stepper.el);
-  graph.activate(); // 容器已在 DOM（發散槽，雖隱藏），建 cytoscape；onShow 會 resize+fit
+  graph.activate(); // 容器已在 DOM（步2 work-main，雖隱藏），建 cytoscape；onShow 會 resize+fit
   stepper.go(0); // 落在「想法牆」
   exportBtn.hidden = false;
 

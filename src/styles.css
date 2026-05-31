@@ -367,16 +367,60 @@ header .dot {
   color: var(--text-dim);
   margin: 0 0 12px;
 }
-.diverge-grid {
-  display: grid;
-  gap: 6px;
-  align-items: stretch;
+/* 垂直 accordion（取代原 5 欄矩陣，能塞進左側窄 sidebar）：一主題一收合區，內含 4 角度直堆 */
+.dv-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.dv-lenshead {
+.dv-section {
   background: var(--panel);
   border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.dv-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+.dv-summary:hover {
+  color: var(--accent);
+}
+.dv-caret {
+  font-size: 11px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+}
+.dv-section.collapsed .dv-caret {
+  transform: rotate(-90deg);
+}
+.dv-section.collapsed .dv-section-body {
+  display: none;
+}
+.dv-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.dv-lensblock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   border-radius: 8px;
   padding: 8px;
+  background: var(--bg);
 }
 .dv-lens-title {
   font-weight: 600;
@@ -386,10 +430,25 @@ header .dot {
 .dv-lens-hint {
   font-size: 11px;
   color: var(--text-dim);
-  margin-top: 3px;
+}
+.dv-input {
+  width: 100%;
+  min-height: 48px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+.dv-input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 .dv-ai {
-  margin-top: 8px;
+  margin-top: 4px;
   border-top: 1px dashed var(--border);
   padding-top: 6px;
 }
@@ -403,50 +462,16 @@ header .dot {
   color: var(--text-dim);
   padding: 2px 0;
 }
-.dv-conceptlabel {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 8px;
-}
-.dv-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-radius: 6px;
-}
-.dv-input {
-  width: 100%;
-  min-height: 48px;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px;
-  font-family: inherit;
-  font-size: 12px;
-  resize: vertical;
-}
-.dv-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-.dv-lenshead.gap-lens {
-  background: rgba(239, 159, 39, 0.12);
-  border-color: var(--thin);
-}
-.dv-cell.gap-lens {
+/* 盲點高亮：漏掉的角度（每主題的同角度區塊）/ 完全沒碰的主題（收合區標頭） */
+.dv-lensblock.gap-lens {
   border: 1px solid var(--thin);
   background: rgba(239, 159, 39, 0.12);
 }
-.dv-cell.gap-concept {
+.dv-lensblock.gap-concept {
   border: 1px solid var(--thin);
   background: rgba(239, 159, 39, 0.08);
 }
-.dv-conceptlabel.gap-concept {
+.dv-summary.gap-concept {
   color: var(--thin);
 }
 
@@ -521,7 +546,7 @@ header .dot {
   font-size: 11px;
   cursor: pointer;
 }
-.spark-on .dv-cell:hover .spark-btn,
+.spark-on .dv-lensblock:hover .spark-btn,
 .spark-on .spark-btn:focus,
 .spark-on .spark-btn:disabled {
   display: inline-block;
@@ -736,25 +761,48 @@ header .dot {
   animation: panelEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* 並排：左關係圖 + 右工作面板（發散給工作區多一點、收斂對半） */
-.split {
+/* 步2 發散：左側可塌縮 sidebar（發散輸入）+ 右側大關係圖（圖是主角）。收起後圖佔滿。 */
+.work-split {
   display: grid;
+  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
-.split--diverge {
-  grid-template-columns: minmax(280px, 0.72fr) minmax(420px, 1.28fr);
+.work-split.collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
 }
-.split--quad {
-  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+.work-sidebar {
+  min-width: 0;
 }
-.split-graph .graph {
+.work-split.collapsed .work-sidebar {
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* 圖貼頂：sidebar 全展開很長時，捲動仍能看到圖 */
+.work-main {
+  min-width: 0;
   position: sticky;
   top: 12px;
+  align-self: start;
+}
+.sidebar-toggle {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.sidebar-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 @media (max-width: 900px) {
-  .split--diverge,
-  .split--quad {
+  .work-split,
+  .work-split.collapsed {
     grid-template-columns: 1fr;
   }
 }

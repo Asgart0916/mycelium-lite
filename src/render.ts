@@ -194,26 +194,6 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     ),
   );
 
-  const grid = el("div", "diverge-grid");
-  grid.style.gridTemplateColumns = `minmax(84px, 116px) repeat(${LENS_KEYS.length}, minmax(0, 1fr))`;
-
-  // 表頭：左上角空格 + 四個角度（AI 內容先藏）
-  grid.append(el("div", "dv-corner"));
-  const lensReveal: Record<string, HTMLElement> = {};
-  for (const lens of LENS_KEYS) {
-    const head = el("div", "dv-lenshead");
-    head.dataset.lens = lens;
-    head.append(
-      el("div", "dv-lens-title", LENS_META[lens].title),
-      el("div", "dv-lens-hint", LENS_META[lens].hint),
-    );
-    const aiBox = el("div", "dv-ai");
-    aiBox.hidden = true;
-    lensReveal[lens] = aiBox;
-    head.append(aiBox);
-    grid.append(head);
-  }
-
   // 火花召喚頻率（in-session，N4 再進 IndexedDB）：某主題召喚多 = 你這塊弱（輔助盲點訊號）
   const sparkCounts = new Map<string, number>();
   // 各格被「採用」過的火花文字 → 關係圖更新時標來源=spark（其餘人填行 = human）。從持久化還原。
@@ -222,15 +202,32 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     sparkAdopted.set(k, new Set(list));
   }
 
-  // 每個主題一列，每格一個輸入區（+ hover 浮現的火花破冰鈕）
+  // 垂直 accordion：一個主題一個可收合區，內含 4 個角度直向堆疊（可多開、預設全展開）。
+  // 改自原本的 5 欄寬矩陣，讓步2 能塞進左側窄 sidebar。
+  const accordion = el("div", "dv-accordion");
+  const aiBoxes: HTMLElement[] = []; // 各主題各角度的 AI 揭露框，reveal 時一起填（同角度內容相同）
+
   for (const c of sprint.core_concepts) {
-    const label = el("div", "dv-conceptlabel", c.label);
-    label.dataset.concept = c.id;
-    grid.append(label);
+    const section = el("div", "dv-section");
+    section.dataset.concept = c.id;
+
+    // 主題標頭：點擊收合／展開（caret 旋轉由 CSS 控）
+    const summary = el("button", "dv-summary") as HTMLButtonElement;
+    summary.type = "button";
+    summary.dataset.concept = c.id;
+    summary.append(el("span", "dv-caret", "▾"), el("span", "dv-summary-label", c.label));
+    summary.addEventListener("click", () => section.classList.toggle("collapsed"));
+
+    const body = el("div", "dv-section-body");
     for (const lens of LENS_KEYS) {
-      const cellWrap = el("div", "dv-cell");
-      cellWrap.dataset.concept = c.id;
-      cellWrap.dataset.lens = lens;
+      const block = el("div", "dv-lensblock");
+      block.dataset.concept = c.id;
+      block.dataset.lens = lens;
+      block.append(
+        el("div", "dv-lens-title", LENS_META[lens].title),
+        el("div", "dv-lens-hint", LENS_META[lens].hint),
+      );
+
       const ta = document.createElement("textarea");
       ta.className = "dv-input";
       ta.rows = 2;
@@ -240,7 +237,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       ta.value = opts.initial?.text?.[cellKey(c.id, lens)] ?? ""; // 還原預填
       ta.addEventListener("input", () => opts.onChange?.());
 
-      // 火花破冰：偵測到 Ollama 才啟用（box.spark-on），hover 該格浮現（CSS 控）
+      // 火花破冰：偵測到 Ollama 才啟用（box.spark-on），hover 該角度區塊浮現（CSS 控）
       const spark = el("button", "spark-btn", "卡住了？破冰") as HTMLButtonElement;
       spark.type = "button";
       const sparkOut = el("div", "spark-out");
@@ -283,11 +280,20 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
         }
       });
 
-      cellWrap.append(ta, spark, sparkOut);
-      grid.append(cellWrap);
+      // AI 這角度想到的方向（先藏，按「看看我漏了什麼」才揭露）
+      const aiBox = el("div", "dv-ai");
+      aiBox.hidden = true;
+      aiBox.dataset.lens = lens;
+      aiBoxes.push(aiBox);
+
+      block.append(ta, spark, sparkOut, aiBox);
+      body.append(block);
     }
+
+    section.append(summary, body);
+    accordion.append(section);
   }
-  box.append(grid);
+  box.append(accordion);
 
   // 偵測本地 Ollama；可達才掛 spark-on（CSS 用它 hover 浮現破冰鈕），否則火花入口維持隱藏
   detectOllama().then((ok) => {
@@ -317,7 +323,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     const cells: DivergeCell[] = [];
     for (const c of sprint.core_concepts) {
       for (const lens of LENS_KEYS) {
-        const ta = grid.querySelector<HTMLTextAreaElement>(
+        const ta = accordion.querySelector<HTMLTextAreaElement>(
           `textarea[data-concept="${c.id}"][data-lens="${lens}"]`,
         );
         const ideas = (ta?.value ?? "")
@@ -329,9 +335,9 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     }
     const report = detectGaps(conceptIds, lensHasAi, cells);
 
-    // 揭露 AI 的角度（先前藏起來）
-    for (const lens of LENS_KEYS) {
-      const aiBox = lensReveal[lens];
+    // 揭露 AI 的角度（先前藏起來）。每個角度框都填同一份方向（accordion 每主題各有一份）
+    for (const aiBox of aiBoxes) {
+      const lens = aiBox.dataset.lens as LensKey;
       aiBox.hidden = false;
       aiBox.replaceChildren();
       const dirs = sprint.lenses[lens];
@@ -343,16 +349,16 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       }
     }
 
-    // 高亮漏掉的角度（整列）與主題（整欄）
+    // 高亮漏掉的角度（每個主題的同角度區塊）與主題（整個收合區）
     for (const lens of LENS_KEYS) {
       const skipped = report.skippedLenses.includes(lens);
-      for (const node of grid.querySelectorAll(`[data-lens="${lens}"]`)) {
+      for (const node of accordion.querySelectorAll(`[data-lens="${lens}"]`)) {
         node.classList.toggle("gap-lens", skipped);
       }
     }
     for (const id of conceptIds) {
       const skipped = report.skippedConcepts.includes(id);
-      for (const node of grid.querySelectorAll(`[data-concept="${id}"]`)) {
+      for (const node of accordion.querySelectorAll(`[data-concept="${id}"]`)) {
         node.classList.toggle("gap-concept", skipped);
       }
     }
@@ -421,7 +427,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
   });
 
   const readCell = (conceptId: string, lens: LensKey): string =>
-    grid.querySelector<HTMLTextAreaElement>(
+    accordion.querySelector<HTMLTextAreaElement>(
       `textarea[data-concept="${conceptId}"][data-lens="${lens}"]`,
     )?.value ?? "";
 

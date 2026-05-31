@@ -143,10 +143,14 @@ interface Sprint {
 | **N0** | 純前端骨架（Vite TS）+ 貼 JSON → robust 解析 → 渲染積木牆 + 概念分布條 | 最小可驗證單元 |
 | **N1** ⭐ | **A4 驗證點（2026-05-31 已驗）**：N0 跑 v2a，判定「薄得合理」→ 訊號①否證。範圍限①，賭注轉② | E2 第三次調整（見 §4）|
 | **N2** ⭐ | 步2 人手動逐透鏡 × 概念發散 UI + **維度覆蓋缺口**偵測（標人整個漏掉的維度/透鏡）| 驗 E2 v3，新生死關 |
-| N3 | 火花破冰閥（前端打 Ollama + CORS + 標機器提示 + 召喚頻率訊號）| 步2 增強 |
-| N4 | 收斂 Impact/Effort 2×2 + IndexedDB 持久化 + JSON 匯出入 | 完整一輪 + B1 緩解 |
-| N5 | 步0 逐字稿 → prompt 一鍵複製 + 回填貼入流程打磨（A2 緩解）| 降摩擦 |
+| N3 ✅ | 火花破冰閥（前端打 Ollama、think:false、ephemeral 不入牆、召喚頻率訊號）| 步2 增強 |
+| N4 ✅ | 收斂 Impact/Effort 2×2（勾選精選→拖曳）+ IndexedDB 自動存 + JSON 匯出入 | 完整一輪 + B1 緩解 |
+| N5 ✅ | 步0 prompt 工廠（一鍵複製定案模板）+ 步驟式佈局打磨回填流程 | 降摩擦 |
+| refine ✅ | 關係圖改 **cytoscape.js + fcose**（hover/縮放/聚焦工具列）+ 步驟式 3 步佈局 + frontend-design 視覺翻新 | 2026-05-31 多輪 |
+| R1 ⬜ | **佈局改左側可塌縮工作面板**：圖佔主要橫向空間、別壓縮；diverge 5 欄矩陣需改垂直/accordion 才能進 sidebar | 使用者新指定，最高 |
 | — | 步4–5（假設解構 + 最小驗證）| **不做**，走出工具 |
+
+> 技術棧補記（2026-05-31）：關係圖採 cytoscape.js + cytoscape-fcose（bundle ~590KB/gzip 186KB）；字體 Fraunces + JetBrains Mono + Noto Sans TC（Google Fonts CDN）。Chart.js 已評估否決＝統計圖表庫、無節點-連線網路圖，分類錯配。
 
 ## 9. 待測風險假設（連 PreMortem）
 

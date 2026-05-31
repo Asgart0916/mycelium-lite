@@ -10,6 +10,9 @@
   --warn: #ef9f27;
   --err: #f0997b;
   --thin: #ef9f27;
+  --font-body: "Noto Sans TC", system-ui, sans-serif;
+  --font-display: "Fraunces", "Noto Sans TC", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 * {
@@ -20,20 +23,31 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, "Noto Sans TC", sans-serif;
+  font-family: var(--font-body);
   line-height: 1.6;
+  /* 菌絲氛圍：teal/amber 極淡徑向光暈，固定不隨捲動 */
+  background-image: radial-gradient(60vw 50vh at 18% -5%, rgba(93, 202, 165, 0.07), transparent 60%),
+    radial-gradient(50vw 45vh at 100% 12%, rgba(239, 159, 39, 0.05), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 #app {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem 1.75rem 4rem;
 }
 
+header {
+  margin-bottom: 1.75rem;
+}
 header h1 {
-  font-size: 22px;
+  font-family: var(--font-display);
+  font-size: 34px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   margin: 0;
+  line-height: 1;
 }
 header .dot {
   color: var(--accent);
@@ -41,7 +55,23 @@ header .dot {
 .tagline {
   color: var(--text-dim);
   font-size: 13px;
-  margin: 2px 0 1.25rem;
+  margin: 8px 0 0;
+  max-width: 52ch;
+}
+
+/* 顯示字體：區塊標題用 Fraunces，數字/標籤用等寬 */
+.section-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+.step-num,
+.stat b,
+.dist-count,
+.col-count,
+.quad-axis,
+.graph-tool,
+#composer-summary {
+  font-family: var(--font-mono);
 }
 
 /* ── composer ───────────────────────────────────────────── */
@@ -71,9 +101,75 @@ header .dot {
 }
 .composer-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  gap: 8px;
   margin-top: 10px;
+}
+#status {
+  margin-right: auto; /* 狀態靠左，按鈕群靠右 */
+}
+.ghost-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ghost-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.composer-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.composer.collapsed .composer-bar {
+  display: flex;
+}
+.composer.collapsed > :not(.composer-bar) {
+  display: none;
+}
+.composer-summary {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.prompt-step {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+#prompt-out {
+  margin-top: 8px;
+}
+#prompt-text {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+.prompt-out-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 #parse-btn {
   background: var(--accent-dim);
@@ -318,6 +414,8 @@ header .dot {
 }
 .dv-cell {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
   border-radius: 6px;
 }
 .dv-input {
@@ -404,4 +502,394 @@ header .dot {
   font-size: 12px;
   color: var(--text-dim);
   margin: 10px 0 0;
+}
+.result-spark {
+  font-size: 13px;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+/* ── 步2 火花破冰閥（偵測到 Ollama → box.spark-on；hover 該格才浮現破冰鈕）─────── */
+.spark-btn {
+  display: none;
+  align-self: flex-start;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.spark-on .dv-cell:hover .spark-btn,
+.spark-on .spark-btn:focus,
+.spark-on .spark-btn:disabled {
+  display: inline-block;
+}
+.spark-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.spark-out {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  background: rgba(15, 110, 86, 0.08);
+}
+.spark-label {
+  font-size: 10px;
+  color: var(--warn);
+  margin-bottom: 4px;
+}
+.spark-dir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 0;
+}
+.spark-dir-text {
+  font-size: 12px;
+  color: var(--text);
+}
+.spark-take {
+  flex-shrink: 0;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  font-size: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.spark-musing {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+.spark-err {
+  font-size: 11px;
+  color: var(--err);
+}
+
+/* ── 想法關係圖（cytoscape.js 互動）──────────────────────────────── */
+.graph-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.graph-head .section-title {
+  margin-right: auto;
+}
+.graph-update {
+  flex-shrink: 0;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.graph-update:hover {
+  opacity: 0.85;
+}
+.graph-tools {
+  display: flex;
+  gap: 4px;
+  margin-right: 4px;
+}
+.graph-tool {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.graph-tool:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.graph-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 4px 0 12px;
+  line-height: 1.6;
+}
+.graph-canvas {
+  position: relative;
+  width: 100%;
+  height: 520px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+/* 漂浮卡：顯示完整文字（標籤在圖上故意不畫，避免重疊） */
+.graph-tip {
+  position: absolute;
+  z-index: 5;
+  max-width: 260px;
+  pointer-events: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.tip-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tip-meta {
+  font-size: 10px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.tip-body {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.tip-quote {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+}
+
+/* ── 步驟式佈局 ──────────────────────────────────────────────────── */
+.stepper-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.step-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.step-tab:hover {
+  color: var(--text);
+}
+.step-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text);
+  font-size: 11px;
+}
+.step-tab.active .step-num {
+  background: var(--accent);
+  color: var(--bg);
+}
+.stepper-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.stepper-footer .ghost-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+/* 面板進場：每次切步淡入上浮 */
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.panel-enter {
+  animation: panelEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 並排：左關係圖 + 右工作面板（發散給工作區多一點、收斂對半） */
+.split {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+}
+.split--diverge {
+  grid-template-columns: minmax(280px, 0.72fr) minmax(420px, 1.28fr);
+}
+.split--quad {
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+}
+.split-graph .graph {
+  position: sticky;
+  top: 12px;
+}
+@media (max-width: 900px) {
+  .split--diverge,
+  .split--quad {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 步3 收斂 Impact/Effort 2×2 ──────────────────────────────────── */
+.quad-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.quad-listcol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.quad-filter {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+.quad-list {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.quad-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+.quad-item:hover {
+  background: var(--bg);
+}
+.quad-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.quad-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quad-empty {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.quad-canvas {
+  position: relative;
+  height: 460px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.quad-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.quad-cell {
+  border: 1px dashed var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.quad-win {
+  background: rgba(93, 202, 165, 0.08);
+  color: var(--accent);
+  font-weight: 600;
+}
+.quad-axis {
+  position: absolute;
+  font-size: 11px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+.quad-axis-y {
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.quad-axis-x {
+  bottom: 6px;
+  right: 8px;
+}
+.quad-chips {
+  position: absolute;
+  inset: 0;
+}
+.quad-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 140px;
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--text);
+  cursor: grab;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  touch-action: none;
+}
+.quad-chip.dragging {
+  cursor: grabbing;
+  opacity: 0.85;
+  z-index: 3;
+}
+/* hover 展開看全文（平時截斷避免擠成一團） */
+.quad-chip:hover {
+  max-width: 260px;
+  white-space: normal;
+  z-index: 4;
+  background: var(--panel);
 }

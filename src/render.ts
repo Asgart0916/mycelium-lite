@@ -3,7 +3,10 @@
 // 用語刻意白話：主題=核心概念、點子=節點、角度=透鏡，畫面不出現技術詞。
 
 import { type DivergeCell, detectGaps } from "./diverge";
+import { type ExtraNode, type HarvestRow, harvestNodes } from "./graph-model";
+import { type DivergeState, cellKey } from "./model";
 import { LENS_KEYS, type LensKey, type RawSprint, type ValidationReport } from "./parse";
+import { type SparkResult, detectOllama, summonSpark } from "./spark";
 
 // 四個角度的畫面標題 + 引導問（沿用 crazy8s 已驗的問句）
 const LENS_META: Record<LensKey, { title: string; hint: string }> = {
@@ -18,6 +21,39 @@ function el(tag: string, className?: string, text?: string): HTMLElement {
   if (className) e.className = className;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+// 火花結果顯示在該格下方，標「機器提示」與人發散區隔；按「採用」才把該方向落地進 textarea
+// （ephemeral，不自動入想法牆 → 守紅線 #2）。onAdopt 記下被採用的文字，供關係圖標來源=火花。
+function renderSparkOut(
+  box: HTMLElement,
+  result: SparkResult,
+  ta: HTMLTextAreaElement,
+  onAdopt: (text: string) => void,
+): void {
+  box.hidden = false;
+  box.replaceChildren();
+  if (result.directions.length === 0 && result.musing === "") {
+    box.append(el("div", "spark-err", "火花沒吐出可用內容，再試一次。"));
+    return;
+  }
+  box.append(el("div", "spark-label", "機器提示 · 不會自動入牆，按「採用」才落地"));
+  for (const d of result.directions) {
+    const row = el("div", "spark-dir");
+    row.append(el("span", "spark-dir-text", d));
+    const take = el("button", "spark-take", "採用") as HTMLButtonElement;
+    take.type = "button";
+    take.addEventListener("click", () => {
+      const cur = ta.value.trim();
+      ta.value = cur.length > 0 ? `${cur}\n${d}` : d;
+      onAdopt(d);
+    });
+    row.append(take);
+    box.append(row);
+  }
+  if (result.musing) {
+    box.append(el("div", "spark-musing", result.musing));
+  }
 }
 
 // ── 驗證摘要列（成功標準的即時體檢）──────────────────────────────────────
@@ -134,8 +170,20 @@ export function renderBricks(sprint: RawSprint, report: ValidationReport): HTMLE
   return box;
 }
 
+// 步2 收割結果：每格的人填內容轉成帶來源的點子（關係圖「更新」用）。
+export interface DivergeHandle {
+  el: HTMLElement;
+  harvest: () => ExtraNode[];
+  snapshot: () => DivergeState; // 目前各格內容 + 火花採用紀錄（持久化用）
+}
+
+export interface DivergeOpts {
+  initial?: DivergeState; // 從持久化還原時預填
+  onChange?: () => void; // 任一格編輯/採用時觸發（主程式據此自動存）
+}
+
 // ── 步2：自己多想幾個（AI 的角度先藏，按鈕揭露漏掉的角度／主題）────────────────
-export function mountDiverge(sprint: RawSprint): HTMLElement {
+export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): DivergeHandle {
   const box = el("section", "diverge");
   box.append(el("h2", "section-title", "自己多想幾個"));
   box.append(
@@ -147,7 +195,7 @@ export function mountDiverge(sprint: RawSprint): HTMLElement {
   );
 
   const grid = el("div", "diverge-grid");
-  grid.style.gridTemplateColumns = `150px repeat(${LENS_KEYS.length}, 1fr)`;
+  grid.style.gridTemplateColumns = `minmax(84px, 116px) repeat(${LENS_KEYS.length}, minmax(0, 1fr))`;
 
   // 表頭：左上角空格 + 四個角度（AI 內容先藏）
   grid.append(el("div", "dv-corner"));
@@ -166,7 +214,15 @@ export function mountDiverge(sprint: RawSprint): HTMLElement {
     grid.append(head);
   }
 
-  // 每個主題一列，每格一個輸入區
+  // 火花召喚頻率（in-session，N4 再進 IndexedDB）：某主題召喚多 = 你這塊弱（輔助盲點訊號）
+  const sparkCounts = new Map<string, number>();
+  // 各格被「採用」過的火花文字 → 關係圖更新時標來源=spark（其餘人填行 = human）。從持久化還原。
+  const sparkAdopted = new Map<string, Set<string>>();
+  for (const [k, list] of Object.entries(opts.initial?.adopted ?? {})) {
+    sparkAdopted.set(k, new Set(list));
+  }
+
+  // 每個主題一列，每格一個輸入區（+ hover 浮現的火花破冰鈕）
   for (const c of sprint.core_concepts) {
     const label = el("div", "dv-conceptlabel", c.label);
     label.dataset.concept = c.id;
@@ -181,11 +237,62 @@ export function mountDiverge(sprint: RawSprint): HTMLElement {
       ta.placeholder = "一行一個想法…";
       ta.dataset.concept = c.id;
       ta.dataset.lens = lens;
-      cellWrap.append(ta);
+      ta.value = opts.initial?.text?.[cellKey(c.id, lens)] ?? ""; // 還原預填
+      ta.addEventListener("input", () => opts.onChange?.());
+
+      // 火花破冰：偵測到 Ollama 才啟用（box.spark-on），hover 該格浮現（CSS 控）
+      const spark = el("button", "spark-btn", "卡住了？破冰") as HTMLButtonElement;
+      spark.type = "button";
+      const sparkOut = el("div", "spark-out");
+      sparkOut.hidden = true;
+
+      spark.addEventListener("click", async () => {
+        const ideas = (ta.value ?? "")
+          .split("\n")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+        sparkCounts.set(c.id, (sparkCounts.get(c.id) ?? 0) + 1);
+        spark.disabled = true;
+        spark.textContent = "想中…";
+        try {
+          const result = await summonSpark(
+            c.label,
+            LENS_META[lens].title,
+            LENS_META[lens].hint,
+            ideas,
+          );
+          renderSparkOut(sparkOut, result, ta, (text) => {
+            const key = cellKey(c.id, lens);
+            const set = sparkAdopted.get(key) ?? new Set<string>();
+            set.add(text);
+            sparkAdopted.set(key, set);
+            opts.onChange?.(); // 採用後文字進了 textarea，回報以便自動存
+          });
+        } catch (e) {
+          sparkOut.hidden = false;
+          sparkOut.replaceChildren(
+            el(
+              "div",
+              "spark-err",
+              `破冰失敗：${(e as Error).message}（Ollama 沒開？或 CORS 沒放行）`,
+            ),
+          );
+        } finally {
+          spark.disabled = false;
+          spark.textContent = "卡住了？破冰";
+        }
+      });
+
+      cellWrap.append(ta, spark, sparkOut);
       grid.append(cellWrap);
     }
   }
   box.append(grid);
+
+  // 偵測本地 Ollama；可達才掛 spark-on（CSS 用它 hover 浮現破冰鈕），否則火花入口維持隱藏
+  detectOllama().then((ok) => {
+    if (ok) box.classList.add("spark-on");
+  });
 
   const actions = el("div", "diverge-actions");
   const revealBtn = el("button", "reveal-btn", "看看我漏了什麼");
@@ -254,6 +361,26 @@ export function mountDiverge(sprint: RawSprint): HTMLElement {
     result.hidden = false;
     result.replaceChildren();
     result.append(el("h3", "result-title", "你沒想到的角度"));
+
+    // 火花召喚頻率（輔助訊號）：召喚最多的主題 = 你這塊最沒把握
+    let topSpark = "";
+    let topSparkN = 0;
+    for (const [id, n] of sparkCounts) {
+      if (n > topSparkN) {
+        topSparkN = n;
+        topSpark = id;
+      }
+    }
+    if (topSparkN > 0) {
+      result.append(
+        el(
+          "p",
+          "result-spark",
+          `你在「${conceptLabels.get(topSpark) ?? topSpark}」召喚破冰最多次（${topSparkN} 次）——這塊你可能比較沒把握，值得回頭多想。`,
+        ),
+      );
+    }
+
     if (report.skippedLenses.length === 0 && report.skippedConcepts.length === 0) {
       result.append(
         el(
@@ -293,5 +420,42 @@ export function mountDiverge(sprint: RawSprint): HTMLElement {
     );
   });
 
-  return box;
+  const readCell = (conceptId: string, lens: LensKey): string =>
+    grid.querySelector<HTMLTextAreaElement>(
+      `textarea[data-concept="${conceptId}"][data-lens="${lens}"]`,
+    )?.value ?? "";
+
+  // 收割：讀各格 textarea → 帶來源的點子（關係圖「更新」呼叫）
+  const harvest = (): ExtraNode[] => {
+    const rows: HarvestRow[] = [];
+    for (const c of sprint.core_concepts) {
+      for (const lens of LENS_KEYS) {
+        rows.push({
+          conceptId: c.id,
+          lens,
+          lines: readCell(c.id, lens).split("\n"),
+          adopted: sparkAdopted.get(cellKey(c.id, lens)) ?? new Set<string>(),
+        });
+      }
+    }
+    return harvestNodes(rows);
+  };
+
+  // 快照：目前各格內容 + 採用紀錄（持久化用）。只存非空格，檔案精簡。
+  const snapshot = (): DivergeState => {
+    const text: Record<string, string> = {};
+    const adopted: Record<string, string[]> = {};
+    for (const c of sprint.core_concepts) {
+      for (const lens of LENS_KEYS) {
+        const k = cellKey(c.id, lens);
+        const v = readCell(c.id, lens);
+        if (v.trim().length > 0) text[k] = v;
+        const set = sparkAdopted.get(k);
+        if (set && set.size > 0) adopted[k] = [...set];
+      }
+    }
+    return { text, adopted };
+  };
+
+  return { el: box, harvest, snapshot };
 }

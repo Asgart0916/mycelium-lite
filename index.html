@@ -2,6 +2,12 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/styles.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mycelium-lite</title>
@@ -14,15 +20,34 @@
       </header>
 
       <section class="composer">
-        <label class="field-label">① 逐字稿（可選，貼了才能核對點子出處）</label>
+        <div class="composer-bar">
+          <span id="composer-summary" class="composer-summary"></span>
+          <button id="composer-toggle" class="ghost-btn" type="button" hidden>✎ 編輯輸入</button>
+        </div>
+        <label class="field-label">① 逐字稿（建議貼，產生指令＋核對點子出處都靠它）</label>
         <textarea id="transcript-input" rows="3" placeholder="把這次 brainstorm 的逐字稿貼這裡…"></textarea>
 
-        <label class="field-label">② 貼上 ChatGPT 整理好的 JSON</label>
+        <div class="prompt-step">
+          <label class="field-label">② 產生指令，貼進 ChatGPT Plus</label>
+          <button id="gen-prompt-btn" class="ghost-btn" type="button">產生 ChatGPT 指令</button>
+        </div>
+        <div id="prompt-out" hidden>
+          <textarea id="prompt-text" rows="5" readonly></textarea>
+          <div class="prompt-out-actions">
+            <span class="field-hint">複製 → 貼進 ChatGPT Plus → 把它回的 JSON 貼到下面 ③</span>
+            <button id="copy-prompt-btn" class="ghost-btn" type="button">複製指令</button>
+          </div>
+        </div>
+
+        <label class="field-label">③ 貼上 ChatGPT 整理好的 JSON</label>
         <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 回傳的 JSON（前後有贅字、```json 包裹都沒關係，會自動容錯）。Ctrl+Enter 整理'></textarea>
 
         <div class="composer-actions">
           <span id="status" class="status"></span>
+          <button id="import-btn" class="ghost-btn" type="button">匯入 JSON</button>
+          <button id="export-btn" class="ghost-btn" type="button" hidden>匯出 JSON</button>
           <button id="parse-btn">整理成想法牆</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden />
         </div>
       </section>
 

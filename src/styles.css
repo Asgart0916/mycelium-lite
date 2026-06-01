@@ -21,25 +21,31 @@
 
 body {
   margin: 0;
+  /* 整體放大到 125%（使用者偏好比例）；放 body 讓有效視窗縮小、不橫向溢出 */
+  zoom: 1.25;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
   line-height: 1.6;
   /* 菌絲氛圍：teal/amber 極淡徑向光暈，固定不隨捲動 */
-  background-image: radial-gradient(60vw 50vh at 18% -5%, rgba(93, 202, 165, 0.07), transparent 60%),
-    radial-gradient(50vw 45vh at 100% 12%, rgba(239, 159, 39, 0.05), transparent 55%);
+  background-image: radial-gradient(58vw 52vh at 16% -6%, rgba(93, 202, 165, 0.08), transparent 60%),
+    radial-gradient(52vw 48vh at 102% 8%, rgba(239, 159, 39, 0.055), transparent 58%),
+    radial-gradient(40vw 40vh at 88% 108%, rgba(93, 202, 165, 0.04), transparent 60%);
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
 
+/* 吃滿橫向：寬容器（1920×1080 用） */
 #app {
-  max-width: 1680px;
+  width: 100%;
+  max-width: 1860px;
   margin: 0 auto;
-  padding: 2rem 2.5rem 4rem;
+  padding: 1.5rem 2.5rem 2.5rem;
 }
 
+/* ── header ───────────────────────────────────────────────── */
 header {
-  margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
 }
 header h1 {
   font-family: var(--font-display);
@@ -59,10 +65,14 @@ header .dot {
   max-width: 52ch;
 }
 
-/* 顯示字體：區塊標題用 Fraunces，數字/標籤用等寬 */
 .section-title {
   font-family: var(--font-display);
   letter-spacing: -0.01em;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
 }
 .step-num,
 .stat b,
@@ -74,59 +84,22 @@ header .dot {
   font-family: var(--font-mono);
 }
 
-/* ── composer ───────────────────────────────────────────── */
+/* ── composer（頂部輸入；三欄，可折疊成一行摘要）──────────────── */
 .composer {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1rem;
-  margin-bottom: 1.5rem;
-}
-.field-label {
-  display: block;
-  font-size: 12px;
-  color: var(--text-dim);
-  margin: 0.5rem 0 4px;
-}
-.composer textarea {
-  width: 100%;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-family: inherit;
-  font-size: 13px;
-  resize: vertical;
-}
-.composer-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-#status {
-  margin-right: auto; /* 狀態靠左，按鈕群靠右 */
-}
-.ghost-btn {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.ghost-btn:hover {
-  color: var(--accent);
-  border-color: var(--accent);
+  margin-bottom: 1rem;
 }
 .composer-bar {
   display: none;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.composer.collapsed {
+  padding: 0.7rem 1rem;
 }
 .composer.collapsed .composer-bar {
   display: flex;
@@ -139,12 +112,58 @@ header .dot {
   color: var(--accent);
   font-weight: 500;
 }
+
+.composer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.composer-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+}
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 7px;
+  min-height: 19px;
+}
+.field-label .fl-num {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  margin-right: 4px;
+}
+.composer textarea {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.composer .col {
+  display: flex;
+  flex-direction: column;
+}
+/* 三欄文字框等高、底部對齊 */
+.composer .col textarea {
+  flex: 1 1 auto;
+  min-height: 158px;
+}
 .prompt-step {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 10px;
+  margin: 8px 0;
 }
 #prompt-out {
   margin-top: 8px;
@@ -163,26 +182,24 @@ header .dot {
 .prompt-out-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-top: 6px;
 }
 .field-hint {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-dim);
 }
-#parse-btn {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  padding: 8px 20px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  grid-column: 1 / -1;
 }
-#parse-btn:hover {
-  opacity: 0.85;
+#status {
+  margin-right: auto; /* 狀態靠左，按鈕群靠右 */
 }
 .status {
   font-size: 13px;
@@ -195,7 +212,117 @@ header .dot {
   color: var(--err);
 }
 
-/* ── report 摘要 ────────────────────────────────────────── */
+/* ── 按鈕 ─────────────────────────────────────────────────── */
+.ghost-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ghost-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.solid-btn,
+#parse-btn {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+.solid-btn:hover,
+#parse-btn:hover {
+  opacity: 0.85;
+}
+
+/* ── 步驟切換 tab ─────────────────────────────────────────── */
+.stepper-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.step-tab {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.step-tab:hover {
+  color: var(--text);
+}
+.step-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.step-label-sub {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.step-tab.active .step-label-sub {
+  color: var(--accent);
+  opacity: 0.8;
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text);
+  font-size: 11px;
+}
+.step-tab.active .step-num {
+  background: var(--accent);
+  color: var(--bg);
+}
+.stepper-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+.stepper-footer .ghost-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+/* 面板進場：每次切步淡入上浮 */
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.panel-enter {
+  animation: panelEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 步驟1 · 想法牆 ───────────────────────────────────────── */
 .report {
   display: flex;
   flex-wrap: wrap;
@@ -232,23 +359,27 @@ header .dot {
   margin: 4px 0 0;
 }
 
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 1.5rem 0 0.75rem;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
+/* 兩欄：左各主題數量 + 右想法牆 */
+.wall-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
 }
-
-/* ── 概念分布條 ─────────────────────────────────────────── */
+.dist {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
 .dist-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 6px 0;
+  margin: 7px 0;
 }
 .dist-label {
-  flex: 0 0 160px;
+  flex: 0 0 96px;
   font-size: 13px;
   text-align: right;
 }
@@ -270,24 +401,30 @@ header .dot {
   color: var(--thin);
 }
 .dist-count {
-  flex: 0 0 28px;
+  flex: 0 0 22px;
   font-size: 13px;
   color: var(--text-dim);
+  text-align: right;
 }
 .dist-flag {
   color: var(--thin);
-  font-size: 12px;
+  font-size: 11px;
+  flex: 0 0 auto;
 }
 .dist-hint {
   font-size: 12px;
   color: var(--text-dim);
-  margin-top: 8px;
+  margin: 12px 0 0;
 }
 
-/* ── 積木牆 ─────────────────────────────────────────────── */
+.wall-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: -2px 0 12px;
+}
 .wall-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -355,19 +492,132 @@ header .dot {
   padding: 0 5px;
 }
 
-.wall-sub {
-  font-size: 12px;
-  color: var(--text-dim);
-  margin: -0.25rem 0 0.75rem;
-}
-
-/* ── 步2：自己多想幾個 ─────────────────────────────────────── */
+/* ── 步驟2 · 發散（左可塌縮側欄 + 右大關係圖）──────────────── */
 .diverge-hint {
   font-size: 13px;
   color: var(--text-dim);
   margin: 0 0 12px;
 }
-/* 垂直 accordion（取代原 5 欄矩陣，能塞進左側窄 sidebar）：一主題一收合區，內含 4 角度直堆 */
+/* 關係圖永遠滿版；側欄是覆蓋在圖上的抽屜（不參與排版 → 收合不會 reflow 圖、動畫不 glitch）*/
+.work-split {
+  position: relative;
+}
+.work-main {
+  width: 100%;
+  min-width: 0;
+}
+.work-sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 10;
+  width: min(640px, 82%);
+  overflow-y: auto;
+  padding: 14px;
+  background: rgba(20, 23, 26, 0.9); /* ≈ --bg，半透明 */
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+}
+.work-split.collapsed .work-sidebar {
+  transform: translateX(calc(-100% - 30px)); /* 滑出左側、不碰圖 */
+  opacity: 0;
+  pointer-events: none;
+}
+.sidebar-toggle {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-bottom: 10px;
+  font-family: inherit;
+}
+.sidebar-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+/* 收合時左緣浮現的迷你進度欄：垂直置中（避開頂部標題）、極窄、無主題文字。
+   一主題一列＝色點（主題色）+ 4 段 pips（亮段=已填角度數）；點整條展開抽屜。 */
+.dv-rail {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 9px;
+  background: rgba(20, 23, 26, 0.9); /* ≈ --bg，半透明 */
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-8px, -50%); /* 收起態滑出一點再淡入 */
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s
+    ease;
+}
+.work-split.collapsed .dv-rail {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+}
+.dv-rail:hover {
+  border-color: var(--accent);
+}
+.dv-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dv-rail-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dv-rail-pips {
+  display: flex;
+  gap: 3px;
+}
+.dv-rail-pip {
+  width: 7px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--border); /* 暗段=未填 */
+  transition: background-color 0.22s ease;
+}
+.dv-rail-pip.on {
+  background: var(--pip-color, var(--accent)); /* 亮段=主題色 */
+}
+.dv-rail-expand {
+  align-self: center;
+  margin-top: 2px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+}
+.dv-rail:hover .dv-rail-expand {
+  color: var(--accent);
+}
+
+/* 手風琴：一主題一收合區，內含 4 個角度直堆 */
 .dv-accordion {
   display: flex;
   flex-direction: column;
@@ -406,13 +656,28 @@ header .dot {
   transform: rotate(-90deg);
 }
 .dv-section.collapsed .dv-section-body {
-  display: none;
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.dv-summary-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
 }
 .dv-section-body {
-  display: flex;
-  flex-direction: column;
+  /* 4 個角度卡 → 兩欄兩排（卡片半寬）*/
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 0 12px 12px;
+  overflow: hidden;
+  max-height: 1600px;
+  opacity: 1;
+  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease, padding 0.32s
+    ease;
 }
 .dv-lensblock {
   display: flex;
@@ -420,7 +685,9 @@ header .dot {
   gap: 4px;
   border-radius: 8px;
   padding: 8px;
-  background: var(--bg);
+  /* 背景取該主題（主節點）色系的淡色調，把角度卡視覺綁回主題 */
+  background: color-mix(in srgb, var(--card-tint, var(--accent)) 12%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--card-tint, var(--border)) 22%, var(--border));
 }
 .dv-lens-title {
   font-weight: 600;
@@ -462,7 +729,7 @@ header .dot {
   color: var(--text-dim);
   padding: 2px 0;
 }
-/* 盲點高亮：漏掉的角度（每主題的同角度區塊）/ 完全沒碰的主題（收合區標頭） */
+/* 盲點高亮：漏掉的角度（同角度區塊）/ 完全沒碰的主題（收合區標頭） */
 .dv-lensblock.gap-lens {
   border: 1px solid var(--thin);
   background: rgba(239, 159, 39, 0.12);
@@ -475,7 +742,6 @@ header .dot {
   color: var(--thin);
 }
 
-/* ── 步2 結果：彙總漏掉的角度／主題 ──────────────────────────── */
 .diverge-actions {
   margin-top: 14px;
 }
@@ -488,10 +754,13 @@ header .dot {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  font-family: inherit;
 }
 .reveal-btn:hover {
   opacity: 0.85;
 }
+
+/* 步2 結果：彙總漏掉的角度／主題 */
 .diverge-result {
   margin-top: 14px;
   background: var(--panel);
@@ -534,7 +803,7 @@ header .dot {
   margin: 0 0 8px;
 }
 
-/* ── 步2 火花破冰閥（偵測到 Ollama → box.spark-on；hover 該格才浮現破冰鈕）─────── */
+/* 步2 火花破冰閥（偵測到 Ollama → box.spark-on；hover 該角度區塊才浮現破冰鈕）*/
 .spark-btn {
   display: none;
   align-self: flex-start;
@@ -598,15 +867,18 @@ header .dot {
   color: var(--err);
 }
 
-/* ── 想法關係圖（cytoscape.js 互動）──────────────────────────────── */
+/* 大關係圖（圖是主角，明顯比側欄大）*/
 .graph-head {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 4px;
 }
 .graph-head .section-title {
-  margin-right: auto;
+  margin: 0 auto 0 0;
+  border: none;
+  padding: 0;
 }
 .graph-update {
   flex-shrink: 0;
@@ -618,6 +890,7 @@ header .dot {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  font-family: inherit;
 }
 .graph-update:hover {
   opacity: 0.85;
@@ -651,8 +924,9 @@ header .dot {
 .graph-canvas {
   position: relative;
   width: 100%;
-  height: clamp(520px, 72vh, 820px); /* 吃滿 1080p 縱向，小螢幕保底 520 */
-  background: var(--panel);
+  height: clamp(560px, 74vh, 880px); /* 吃滿 1080p 縱向，小螢幕保底 */
+  background: radial-gradient(120% 120% at 30% 20%, rgba(93, 202, 165, 0.05), transparent 55%),
+    var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -692,132 +966,22 @@ header .dot {
   padding-top: 6px;
 }
 
-/* ── 步驟式佈局 ──────────────────────────────────────────────────── */
-.stepper-nav {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.step-tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.step-tab:hover {
-  color: var(--text);
-}
-.step-tab.active {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
-.step-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--border);
-  color: var(--text);
-  font-size: 11px;
-}
-.step-tab.active .step-num {
-  background: var(--accent);
-  color: var(--bg);
-}
-.stepper-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 18px;
-}
-.stepper-footer .ghost-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  border-color: var(--border);
-  color: var(--text-dim);
-}
-
-/* 面板進場：每次切步淡入上浮 */
-@keyframes panelEnter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.panel-enter {
-  animation: panelEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 步2 發散：左側可塌縮 sidebar（發散輸入）+ 右側大關係圖（圖是主角）。收起後圖佔滿。 */
-.work-split {
-  display: grid;
-  grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-.work-split.collapsed {
-  grid-template-columns: 0 minmax(0, 1fr);
-}
-.work-sidebar {
-  min-width: 0;
-}
-.work-split.collapsed .work-sidebar {
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-/* 圖貼頂：sidebar 全展開很長時，捲動仍能看到圖 */
-.work-main {
-  min-width: 0;
-  position: sticky;
-  top: 12px;
-  align-self: start;
-}
-.sidebar-toggle {
-  background: transparent;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 4px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.sidebar-toggle:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-@media (max-width: 900px) {
-  .work-split,
-  .work-split.collapsed {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── 步3 收斂 Impact/Effort 2×2 ──────────────────────────────────── */
+/* ── 步驟3 · 收斂（候選清單 + Impact/Effort 2×2）─────────────── */
 .quad-layout {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1040px); /* 畫布上限 1040，寬螢幕不被拉太扁 */
-  gap: 16px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 .quad-listcol {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+.quad-sub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
 }
 .quad-filter {
   width: 100%;
@@ -825,40 +989,68 @@ header .dot {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 7px 10px;
   font-family: inherit;
   font-size: 12px;
 }
+.quad-filter::placeholder {
+  color: var(--text-dim);
+}
 .quad-list {
-  max-height: clamp(420px, 64vh, 680px);
+  max-height: clamp(440px, 66vh, 760px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding-right: 2px;
 }
 .quad-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
+  gap: 9px;
+  padding: 7px 8px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   color: var(--text);
+  border: 1px solid transparent;
 }
 .quad-item:hover {
   background: var(--bg);
 }
+.quad-item.checked {
+  background: var(--bg);
+  border-color: var(--border);
+}
+.quad-item input[type="checkbox"] {
+  display: none; /* 用自訂 .quad-check 呈現，保留原生 checkbox 當狀態源 */
+}
+.quad-check {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: var(--bg);
+}
+.quad-item.checked .quad-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
 .quad-dot {
   flex-shrink: 0;
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 .quad-item-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 .quad-empty {
   font-size: 13px;
@@ -866,7 +1058,7 @@ header .dot {
 }
 .quad-canvas {
   position: relative;
-  height: clamp(460px, 64vh, 680px);
+  height: clamp(520px, 70vh, 820px);
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -884,9 +1076,13 @@ header .dot {
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 6px;
-  font-size: 11px;
+  padding: 10px 12px;
+  font-size: 12px;
   color: var(--text-dim);
+}
+.quad-cell .cell-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 .quad-win {
   background: rgba(93, 202, 165, 0.08);
@@ -900,13 +1096,22 @@ header .dot {
   pointer-events: none;
 }
 .quad-axis-y {
-  top: 6px;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.quad-axis-y-low {
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
 }
 .quad-axis-x {
-  bottom: 6px;
-  right: 8px;
+  bottom: 8px;
+  right: 10px;
+}
+.quad-axis-x-low {
+  bottom: 8px;
+  left: 10px;
 }
 .quad-chips {
   position: absolute;
@@ -915,8 +1120,8 @@ header .dot {
 .quad-chip {
   position: absolute;
   transform: translate(-50%, -50%);
-  max-width: 140px;
-  padding: 3px 8px;
+  max-width: 150px;
+  padding: 4px 9px;
   background: var(--bg);
   border: 1.5px solid var(--border);
   border-radius: 12px;
@@ -928,16 +1133,126 @@ header .dot {
   text-overflow: ellipsis;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   touch-action: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.quad-chip.dragging {
-  cursor: grabbing;
-  opacity: 0.85;
-  z-index: 3;
+.quad-chip .quad-dot {
+  width: 8px;
+  height: 8px;
 }
-/* hover 展開看全文（平時截斷避免擠成一團） */
 .quad-chip:hover {
   max-width: 260px;
   white-space: normal;
   z-index: 4;
   background: var(--panel);
+}
+.quad-chip.dragging {
+  cursor: grabbing;
+  opacity: 0.9;
+  z-index: 5;
+  border-color: var(--accent);
+}
+
+/* ── 窄螢幕：三欄/兩欄佈局退回單欄 ─────────────────────────── */
+@media (max-width: 1000px) {
+  .composer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .wall-layout,
+  .quad-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 過場與動畫：收合 / 彈出 / 按鈕回饋，整體更絲滑 ──────────────── */
+/* 互動元件的狀態過場（顏色／邊框／陰影／微位移）*/
+.ghost-btn,
+.solid-btn,
+#parse-btn,
+.reveal-btn,
+.graph-update,
+.graph-tool,
+.spark-take,
+.spark-btn,
+.step-tab,
+.sidebar-toggle,
+.dv-summary,
+.dv-caret,
+.quad-item,
+.quad-check,
+.stat,
+.wall-col,
+.brick,
+.dv-input,
+.composer textarea,
+#prompt-text,
+.quad-filter {
+  transition:
+    background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    opacity 0.18s ease, box-shadow 0.2s ease, transform 0.12s ease;
+}
+/* chip 只過場外觀，不碰位移（拖曳才不會卡頓）*/
+.quad-chip {
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.18s ease;
+}
+/* 按下回饋 */
+.ghost-btn:active,
+.solid-btn:active,
+#parse-btn:active,
+.reveal-btn:active,
+.graph-update:active,
+.graph-tool:active,
+.spark-take:active,
+.sidebar-toggle:active {
+  transform: translateY(1px);
+}
+/* tab / 卡片 hover 微浮 */
+.step-tab:hover {
+  transform: translateY(-1px);
+}
+.wall-col:hover {
+  border-color: var(--accent-dim);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* 彈出：揭露面板 / 火花輸出 / 漂浮卡 */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.diverge-result:not([hidden]),
+.spark-out:not([hidden]) {
+  animation: popIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.graph-tip:not([hidden]) {
+  animation: tipIn 0.13s ease;
+}
+
+/* 無障礙：使用者要求減少動態時，全部關掉 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }

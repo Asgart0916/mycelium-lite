@@ -25,7 +25,8 @@ const promptText = $<HTMLTextAreaElement>("#prompt-text");
 const statusEl = $<HTMLElement>("#status");
 const outEl = $<HTMLElement>("#output");
 const composerEl = $<HTMLElement>(".composer");
-const composerToggle = $<HTMLButtonElement>("#composer-toggle");
+const composerToggle = $<HTMLButtonElement>("#composer-toggle"); // 摘要列：展開
+const composerCollapse = $<HTMLButtonElement>("#composer-collapse"); // 三欄區右上：折疊
 const composerSummary = $<HTMLElement>("#composer-summary");
 
 // 解析後把輸入區折疊成一行摘要，騰出空間給步驟面板；點「編輯輸入」展開
@@ -33,12 +34,9 @@ function collapseComposer(summary: string) {
   composerSummary.textContent = summary;
   composerEl.classList.add("collapsed");
   composerToggle.hidden = false;
-  composerToggle.textContent = "✎ 編輯輸入";
 }
-composerToggle.addEventListener("click", () => {
-  const collapsed = composerEl.classList.toggle("collapsed");
-  composerToggle.textContent = collapsed ? "✎ 編輯輸入" : "▴ 收合";
-});
+composerToggle.addEventListener("click", () => composerEl.classList.remove("collapsed"));
+composerCollapse.addEventListener("click", () => composerEl.classList.add("collapsed"));
 
 let working: WorkingSprint | null = null;
 let saveTimer: number | undefined;
@@ -112,30 +110,37 @@ function renderWorking() {
     },
   });
 
-  // 想法牆面板＝驗證摘要 + 各主題數量 + 積木牆
+  // 想法牆面板＝驗證摘要列（上）+ 兩欄（左各主題數量、右積木牆，吃滿橫向）
   const wall = document.createElement("div");
-  wall.append(renderReport(report), renderDistribution(report), renderBricks(sprint, report));
+  const wallLayout = document.createElement("div");
+  wallLayout.className = "wall-layout";
+  wallLayout.append(renderDistribution(report), renderBricks(sprint, report));
+  wall.append(renderReport(report), wallLayout);
 
-  // 步2 發散：左側可塌縮 sidebar（發散輸入）+ 右側大關係圖。圖是主角，sidebar 收起後更寬。
+  // 步2 發散：關係圖永遠滿版，發散輸入是「覆蓋在圖上的抽屜」。
+  // 抽屜用絕對定位 + transform 滑動，不參與排版 → 收合不會 reflow 圖、cytoscape 不需 resize、動畫不 glitch。
   const divergePanel = document.createElement("div");
   const workSplit = document.createElement("div");
   workSplit.className = "work-split";
-  const sidebar = document.createElement("div");
-  sidebar.className = "work-sidebar";
-  sidebar.append(diverge.el);
+
   const workMain = document.createElement("div");
   workMain.className = "work-main";
+  workMain.append(graph.el); // 關係圖只在步2 出現，固定掛這、永遠滿版
+
+  const sidebar = document.createElement("div");
+  sidebar.className = "work-sidebar";
   const collapseBtn = document.createElement("button");
   collapseBtn.type = "button";
   collapseBtn.className = "sidebar-toggle";
-  collapseBtn.textContent = "◀ 收起輸入欄";
-  collapseBtn.addEventListener("click", () => {
-    const collapsed = workSplit.classList.toggle("collapsed");
-    collapseBtn.textContent = collapsed ? "▶ 展開輸入欄" : "◀ 收起輸入欄";
-    graph.onShow(); // 寬度變了 → cytoscape 重算尺寸並重 fit
-  });
-  workMain.append(collapseBtn, graph.el); // 關係圖只在步2 出現，固定掛這
-  workSplit.append(sidebar, workMain);
+  collapseBtn.textContent = "⮜ 收起側欄";
+  collapseBtn.addEventListener("click", () => workSplit.classList.add("collapsed"));
+  sidebar.append(collapseBtn, diverge.el);
+
+  // 收合時左緣浮現的迷你進度欄（色點 + 4 段 pips）取代舊把手：垂直置中、不擋標題，
+  // 一眼看各主題填了幾個角度；點整條 rail 即展開抽屜（圖寬不變，無需 graph.onShow）。
+  diverge.rail.addEventListener("click", () => workSplit.classList.remove("collapsed"));
+
+  workSplit.append(workMain, sidebar, diverge.rail);
   divergePanel.append(workSplit);
 
   // 步3 收斂：2×2 當寬主區（候選清單 + 畫布），不放並排圖
@@ -143,14 +148,16 @@ function renderWorking() {
   quadPanel.append(quad.el);
 
   const stepper = mountStepper([
-    { label: "想法牆", panel: wall },
+    { label: "想法牆", sub: "看分布", panel: wall },
     {
-      label: "發散：自己多想",
+      label: "發散",
+      sub: "自己多想幾個",
       panel: divergePanel,
       onShow: () => graph.onShow(),
     },
     {
-      label: "收斂：選方向",
+      label: "收斂",
+      sub: "選方向",
       panel: quadPanel,
       onShow: () => quad.onShow(),
     },

@@ -1,7 +1,6 @@
-// 關係圖的純資料建模（無 cytoscape runtime 依賴，僅 import type）。
-// 抽出來讓 buildElements / harvestNodes / assignConceptColors 能在 node 測試環境單測。
+// 關係圖的純資料建模（無圖引擎 runtime 依賴）。
+// 抽出來讓 buildGraphData / harvestNodes / assignConceptColors 能在 node 測試環境單測。
 
-import type cytoscape from "cytoscape";
 import type { RawSprint } from "./parse";
 
 // 分類色盤：低彩度大地色，貼合 app 的 slate + teal(accent) + amber 調性，避開霓虹藍紫。
@@ -81,69 +80,123 @@ export function assignConceptColors(conceptIds: string[]): Map<string, string> {
   return map;
 }
 
-// 由 sprint（AI 回填）+ extra（步2 收割）建 cytoscape elements。純函式：同輸入同輸出，可測。
-export function buildElements(
-  sprint: RawSprint,
-  extra: ExtraNode[] = [],
-): cytoscape.ElementDefinition[] {
+// ── G6 圖資料：主題=combo（泡泡容器）、主題中心=concept 節點、點子=idea 節點 ──────────
+// 點子歸到「主歸屬主題」的 combo（泡泡內），跨主題點子另對其他主題的中心拉一條 cross 邊（橋接）。
+// combo-combined 佈局保證泡泡互不重疊 → 結構天生乾淨，不靠力導向碰運氣。
+export type GraphKind = "concept" | "idea";
+
+export interface GNodeData {
+  kind: GraphKind;
+  label: string;
+  color: string;
+  origin?: IdeaOrigin; // 點子來源（形狀用）
+  quote?: string; // 原文（tooltip 用，紅線 #2 照抄）
+  members?: string; // 跨哪些主題（tooltip 用）
+  cross?: boolean; // 跨主題點子 → 橘環
+}
+export interface GNode {
+  id: string;
+  combo: string;
+  data: GNodeData;
+}
+export interface GEdgeData {
+  color: string;
+  cross: boolean; // 非主歸屬連線 → 淡虛弧
+}
+export interface GEdge {
+  id: string;
+  source: string;
+  target: string;
+  data: GEdgeData;
+}
+export interface GCombo {
+  id: string;
+  data: { label: string; color: string };
+}
+export interface GraphData {
+  nodes: GNode[];
+  edges: GEdge[];
+  combos: GCombo[];
+}
+
+const comboIdOf = (conceptId: string): string => `combo_${conceptId}`;
+
+export function buildGraphData(sprint: RawSprint, extra: ExtraNode[] = []): GraphData {
   const conceptIds = sprint.core_concepts.map((c) => c.id);
   const colors = assignConceptColors(conceptIds);
   const conceptSet = new Set(conceptIds);
   const labels = new Map(sprint.core_concepts.map((c) => [c.id, c.label]));
-  const els: cytoscape.ElementDefinition[] = [];
 
-  // 主題 hub
+  const nodes: GNode[] = [];
+  const edges: GEdge[] = [];
+  const combos: GCombo[] = [];
+
+  // 每主題：一個泡泡 + 一個置中的主題節點
   for (const c of sprint.core_concepts) {
-    els.push({
-      data: { id: c.id, label: c.label, kind: "concept", color: colors.get(c.id) ?? ORPHAN_COLOR },
-      classes: "concept",
+    const color = colors.get(c.id) ?? ORPHAN_COLOR;
+    combos.push({ id: comboIdOf(c.id), data: { label: c.label, color } });
+    nodes.push({
+      id: c.id,
+      combo: comboIdOf(c.id),
+      data: { kind: "concept", label: c.label, color },
     });
   }
 
-  // AI 回填點子
+  // AI 回填點子：放進主歸屬主題的泡泡；每個歸屬拉一條邊（第一個=主邊，其餘=跨主題橋）
   for (const n of sprint.nodes) {
     const cids = (n.core_concept_ids ?? []).filter((id) => conceptSet.has(id));
     const primary = cids[0];
+    if (!primary) continue; // 無有效歸屬 → 不入圖
     const cross = cids.length > 1;
-    const color = primary ? (colors.get(primary) ?? ORPHAN_COLOR) : ORPHAN_COLOR;
+    const color = colors.get(primary) ?? ORPHAN_COLOR;
     const members = cids.map((id) => labels.get(id) ?? id).join("、");
-    els.push({
+    nodes.push({
+      id: n.id,
+      combo: comboIdOf(primary),
       data: {
-        id: n.id,
-        label: n.idea,
         kind: "idea",
-        origin: "ai",
+        label: n.idea,
         color,
+        origin: "ai",
         quote: n.source_quote ?? "",
         members,
+        cross,
       },
-      classes: cross ? "idea ai cross" : "idea ai",
     });
-    for (const cid of cids) {
-      els.push({ data: { id: `e_${n.id}_${cid}`, source: n.id, target: cid, color } });
-    }
+    cids.forEach((cid, idx) => {
+      edges.push({
+        id: `e_${n.id}_${cid}`,
+        source: n.id,
+        target: cid,
+        data: { color, cross: idx > 0 },
+      });
+    });
   }
 
   // 步2 收割的新點子（單一主題）
   for (const x of extra) {
     if (!conceptSet.has(x.conceptId)) continue;
     const color = colors.get(x.conceptId) ?? ORPHAN_COLOR;
-    els.push({
+    nodes.push({
+      id: x.id,
+      combo: comboIdOf(x.conceptId),
       data: {
-        id: x.id,
-        label: x.idea,
         kind: "idea",
-        origin: x.origin,
+        label: x.idea,
         color,
+        origin: x.origin,
         quote: x.source_quote ?? "",
         members: labels.get(x.conceptId) ?? x.conceptId,
+        cross: false,
       },
-      classes: `idea ${x.origin}`,
     });
-    els.push({
-      data: { id: `e_${x.id}_${x.conceptId}`, source: x.id, target: x.conceptId, color },
+    edges.push({
+      id: `e_${x.id}_${x.conceptId}`,
+      source: x.id,
+      target: x.conceptId,
+      data: { color, cross: false },
     });
   }
 
-  return els;
+  return { nodes, edges, combos };
 }

@@ -3,7 +3,7 @@
 // 用語刻意白話：主題=核心概念、點子=節點、角度=透鏡，畫面不出現技術詞。
 
 import { type DivergeCell, detectGaps } from "./diverge";
-import { type ExtraNode, type HarvestRow, harvestNodes } from "./graph-model";
+import { type ExtraNode, type HarvestRow, assignConceptColors, harvestNodes } from "./graph-model";
 import { type DivergeState, cellKey } from "./model";
 import { LENS_KEYS, type LensKey, type RawSprint, type ValidationReport } from "./parse";
 import { type SparkResult, detectOllama, summonSpark } from "./spark";
@@ -173,6 +173,7 @@ export function renderBricks(sprint: RawSprint, report: ValidationReport): HTMLE
 // 步2 收割結果：每格的人填內容轉成帶來源的點子（關係圖「更新」用）。
 export interface DivergeHandle {
   el: HTMLElement;
+  rail: HTMLElement; // 收合時左緣的迷你進度欄（色點 + 4 段 pips）
   harvest: () => ExtraNode[];
   snapshot: () => DivergeState; // 目前各格內容 + 火花採用紀錄（持久化用）
 }
@@ -194,6 +195,9 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     ),
   );
 
+  // 各主題的色（取自關係圖主節點配色）→ 角度卡背景用相近色系
+  const conceptColors = assignConceptColors(sprint.core_concepts.map((c) => c.id));
+
   // 火花召喚頻率（in-session，N4 再進 IndexedDB）：某主題召喚多 = 你這塊弱（輔助盲點訊號）
   const sparkCounts = new Map<string, number>();
   // 各格被「採用」過的火花文字 → 關係圖更新時標來源=spark（其餘人填行 = human）。從持久化還原。
@@ -207,18 +211,49 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
   const accordion = el("div", "dv-accordion");
   const aiBoxes: HTMLElement[] = []; // 各主題各角度的 AI 揭露框，reveal 時一起填（同角度內容相同）
 
+  // 收合時左緣的迷你進度欄：一主題一列（色點 + 4 段 pips），同步各主題填了幾個角度
+  const rail = el("div", "dv-rail");
+
   for (const c of sprint.core_concepts) {
     const section = el("div", "dv-section");
     section.dataset.concept = c.id;
+    // 卡片背景取該主題（主節點）色系 → 角度卡視覺綁回主題
+    section.style.setProperty("--card-tint", conceptColors.get(c.id) ?? "#5dcaa5");
 
     // 主題標頭：點擊收合／展開（caret 旋轉由 CSS 控）
     const summary = el("button", "dv-summary") as HTMLButtonElement;
     summary.type = "button";
     summary.dataset.concept = c.id;
-    summary.append(el("span", "dv-caret", "▾"), el("span", "dv-summary-label", c.label));
+    const countEl = el("span", "dv-summary-count");
+    summary.append(el("span", "dv-caret", "▾"), el("span", "dv-summary-label", c.label), countEl);
     summary.addEventListener("click", () => section.classList.toggle("collapsed"));
 
     const body = el("div", "dv-section-body");
+    // 標頭右側「填了幾個角度」進度（純視覺，依非空 textarea 數）
+    const sectionTextareas: HTMLTextAreaElement[] = [];
+
+    // 收合列：色點（主題色）+ 4 段 pips，與標頭計數同步；hover 才浮主題名 + 進度
+    const tint = conceptColors.get(c.id) ?? "#5dcaa5";
+    const railItem = el("div", "dv-rail-item");
+    railItem.dataset.concept = c.id;
+    const railDot = el("span", "dv-rail-dot");
+    railDot.style.background = tint;
+    const railPips = el("div", "dv-rail-pips");
+    const pips = LENS_KEYS.map(() => {
+      const pip = el("span", "dv-rail-pip");
+      pip.style.setProperty("--pip-color", tint);
+      railPips.append(pip);
+      return pip;
+    });
+    railItem.append(railDot, railPips);
+    rail.append(railItem);
+
+    const updateCount = () => {
+      const filled = sectionTextareas.filter((t) => t.value.trim().length > 0).length;
+      countEl.textContent = `${filled}/${LENS_KEYS.length}`;
+      pips.forEach((pip, i) => pip.classList.toggle("on", i < filled)); // 亮前 filled 段
+      railItem.title = `${c.label} · ${filled}/${LENS_KEYS.length}`;
+    };
     for (const lens of LENS_KEYS) {
       const block = el("div", "dv-lensblock");
       block.dataset.concept = c.id;
@@ -235,7 +270,11 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       ta.dataset.concept = c.id;
       ta.dataset.lens = lens;
       ta.value = opts.initial?.text?.[cellKey(c.id, lens)] ?? ""; // 還原預填
-      ta.addEventListener("input", () => opts.onChange?.());
+      sectionTextareas.push(ta);
+      ta.addEventListener("input", () => {
+        opts.onChange?.();
+        updateCount();
+      });
 
       // 火花破冰：偵測到 Ollama 才啟用（box.spark-on），hover 該角度區塊浮現（CSS 控）
       const spark = el("button", "spark-btn", "卡住了？破冰") as HTMLButtonElement;
@@ -289,11 +328,20 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       block.append(ta, spark, sparkOut, aiBox);
       body.append(block);
     }
+    updateCount(); // 還原後的初始計數
 
     section.append(summary, body);
     accordion.append(section);
   }
   box.append(accordion);
+
+  // rail 底部展開把手（點整條 rail 也能展開，由 main 端綁定）
+  const railExpand = document.createElement("button");
+  railExpand.type = "button";
+  railExpand.className = "dv-rail-expand";
+  railExpand.textContent = "⮞";
+  railExpand.title = "展開側欄";
+  rail.append(railExpand);
 
   // 偵測本地 Ollama；可達才掛 spark-on（CSS 用它 hover 浮現破冰鈕），否則火花入口維持隱藏
   detectOllama().then((ok) => {
@@ -463,5 +511,5 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     return { text, adopted };
   };
 
-  return { el: box, harvest, snapshot };
+  return { el: box, rail, harvest, snapshot };
 }

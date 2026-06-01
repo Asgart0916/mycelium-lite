@@ -19,35 +19,48 @@
         <p class="tagline">逐字稿 → 想法牆，再自己多想幾個，照見你沒想到的角度</p>
       </header>
 
-      <section class="composer">
+      <section class="composer" id="composer">
         <div class="composer-bar">
           <span id="composer-summary" class="composer-summary"></span>
           <button id="composer-toggle" class="ghost-btn" type="button" hidden>✎ 編輯輸入</button>
         </div>
-        <label class="field-label">① 逐字稿（建議貼，產生指令＋核對點子出處都靠它）</label>
-        <textarea id="transcript-input" rows="3" placeholder="把這次 brainstorm 的逐字稿貼這裡…"></textarea>
 
-        <div class="prompt-step">
-          <label class="field-label">② 產生指令，貼進 ChatGPT Plus</label>
-          <button id="gen-prompt-btn" class="ghost-btn" type="button">產生 ChatGPT 指令</button>
-        </div>
-        <div id="prompt-out" hidden>
-          <textarea id="prompt-text" rows="5" readonly></textarea>
-          <div class="prompt-out-actions">
-            <span class="field-hint">複製 → 貼進 ChatGPT Plus → 把它回的 JSON 貼到下面 ③</span>
-            <button id="copy-prompt-btn" class="ghost-btn" type="button">複製指令</button>
+        <div class="composer-grid">
+          <div class="composer-head">
+            <button id="composer-collapse" class="ghost-btn" type="button">▾ 折疊成一行</button>
           </div>
-        </div>
 
-        <label class="field-label">③ 貼上 ChatGPT 整理好的 JSON</label>
-        <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 回傳的 JSON（前後有贅字、```json 包裹都沒關係，會自動容錯）。Ctrl+Enter 整理'></textarea>
+          <div class="col">
+            <label class="field-label"><span class="fl-num">1.</span>逐字稿（產生指令＋核對點子出處都靠它）</label>
+            <textarea id="transcript-input" rows="6" placeholder="把這次 brainstorm 的逐字稿貼這裡…"></textarea>
+          </div>
 
-        <div class="composer-actions">
-          <span id="status" class="status"></span>
-          <button id="import-btn" class="ghost-btn" type="button">匯入 JSON</button>
-          <button id="export-btn" class="ghost-btn" type="button" hidden>匯出 JSON</button>
-          <button id="parse-btn">整理成想法牆</button>
-          <input id="import-file" type="file" accept="application/json,.json" hidden />
+          <div class="col">
+            <label class="field-label"><span class="fl-num">2.</span>產生指令，貼進 ChatGPT Plus</label>
+            <div class="prompt-step">
+              <span class="field-hint">複製 → 貼進 ChatGPT Plus → 把它回的 JSON 貼到 3.</span>
+              <button id="gen-prompt-btn" class="ghost-btn" type="button">產生 ChatGPT 指令</button>
+            </div>
+            <div id="prompt-out" hidden>
+              <textarea id="prompt-text" rows="4" readonly></textarea>
+              <div class="prompt-out-actions">
+                <button id="copy-prompt-btn" class="ghost-btn" type="button">複製指令</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col">
+            <label class="field-label"><span class="fl-num">3.</span>貼上 ChatGPT 整理好的 JSON</label>
+            <textarea id="json-input" rows="6" placeholder='貼上 ChatGPT 回傳的 JSON（前後有贅字、```json 包裹都沒關係，會自動容錯）。Ctrl+Enter 整理'></textarea>
+          </div>
+
+          <div class="composer-actions">
+            <span id="status" class="status"></span>
+            <button id="import-btn" class="ghost-btn" type="button">匯入 JSON</button>
+            <button id="export-btn" class="ghost-btn" type="button" hidden>匯出 JSON</button>
+            <button id="parse-btn" class="solid-btn">整理成想法牆</button>
+            <input id="import-file" type="file" accept="application/json,.json" hidden />
+          </div>
         </div>
       </section>
 

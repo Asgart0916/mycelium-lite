@@ -4,6 +4,7 @@
 
 export interface Step {
   label: string;
+  sub?: string; // tab 上的次標籤（如「· 看分布」），純裝飾
   panel: HTMLElement;
   onShow?: () => void;
 }
@@ -51,7 +52,10 @@ export function mountStepper(steps: Step[]): StepperHandle {
   steps.forEach((s, idx) => {
     const tab = el("button", "step-tab") as HTMLButtonElement;
     tab.type = "button";
-    tab.append(el("span", "step-num", String(idx + 1)), el("span", "step-label", s.label));
+    const labelWrap = el("span", "step-label");
+    labelWrap.append(document.createTextNode(s.label));
+    if (s.sub) labelWrap.append(el("span", "step-label-sub", ` · ${s.sub}`));
+    tab.append(el("span", "step-num", String(idx + 1)), labelWrap);
     tab.addEventListener("click", () => go(idx));
     tabs.push(tab);
     nav.append(tab);

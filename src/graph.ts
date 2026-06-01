@@ -1,25 +1,37 @@
-// 想法關係圖（cytoscape.js）：主題 hub + 點子節點，點子連到其每個歸屬主題。
-// 顏色區分主題（點子繼承主歸屬主題色）；來源用形狀分（AI=圓 / 手寫=圓角方 / 火花=菱形）；
-// 跨主題點子（AI 多歸屬）加粗環 = 盲點訊號。互動：hover 放大+鄰居高亮+漂浮卡、
-// 點擊主題高亮子圖、更新按鈕收割步2新靈感重佈局。
-// 純資料建模在 graph-model.ts（可單測）；本檔只管 cytoscape runtime 與互動。
+// 想法關係圖（AntV G6 v5）：主題=泡泡(combo)，主題中心節點 + 點子節點放泡泡內。
+// 顏色分主題；形狀分來源（圓=AI、圓角方=你手寫、菱形=火花）；跨主題點子加橘環＝盲點訊號，
+// 並用淡虛弧橋接到別的泡泡。combo-combined 佈局保證泡泡互不重疊 → 結構天生乾淨。
+// 互動：hover 高亮鄰域 + 漂浮卡看全文、可拖曳、雙擊泡泡收合、工具列縮放/全景、更新收割步2新點子。
+// 純資料建模在 graph-model.ts（可單測）；本檔只管 G6 runtime 與互動。
 
-import type cytoscape from "cytoscape";
-import { type ExtraNode, type IdeaOrigin, buildElements } from "./graph-model";
+import type {
+  ComboData,
+  EdgeData,
+  GraphData as G6GraphData,
+  Graph,
+  GraphOptions,
+  NodeData,
+} from "@antv/g6";
+import {
+  type ExtraNode,
+  type GEdgeData,
+  type GNodeData,
+  type IdeaOrigin,
+  buildGraphData,
+} from "./graph-model";
 import type { RawSprint } from "./parse";
 
 export type { ExtraNode, HarvestRow } from "./graph-model";
-export { harvestNodes, buildElements, assignConceptColors } from "./graph-model";
+export { harvestNodes, buildGraphData, assignConceptColors } from "./graph-model";
 
-// cytoscape + fcose（~500KB）動態載入：首屏不背，進步2 建圖時才抓。型別走 import type（編譯期抹除）。
-type CytoscapeFn = (opts: cytoscape.CytoscapeOptions) => cytoscape.Core;
-let cyLib: CytoscapeFn | null = null;
-async function loadCytoscape(): Promise<CytoscapeFn> {
-  if (cyLib) return cyLib;
-  const [cy, fcose] = await Promise.all([import("cytoscape"), import("cytoscape-fcose")]);
-  cy.default.use(fcose.default as cytoscape.Ext);
-  cyLib = cy.default;
-  return cyLib;
+// G6 v5（~含 @antv/g、layout，重量級）動態載入：首屏不背，進步2 建圖時才抓。
+type GraphCtor = new (options: GraphOptions) => Graph;
+let G6Graph: GraphCtor | null = null;
+async function loadG6(): Promise<GraphCtor> {
+  if (G6Graph) return G6Graph;
+  const m = await import("@antv/g6");
+  G6Graph = m.Graph as unknown as GraphCtor;
+  return G6Graph;
 }
 
 const ORIGIN_LABEL: Record<IdeaOrigin, string> = {
@@ -28,84 +40,96 @@ const ORIGIN_LABEL: Record<IdeaOrigin, string> = {
   spark: "火花採用",
 };
 
-function fcoseLayout(): cytoscape.LayoutOptions {
-  return {
-    name: "fcose",
-    quality: "proof",
-    animate: true,
-    animationDuration: 600,
-    randomize: true, // 必須 true：否則所有節點從 (0,0) 重合點起算 → 退化成一直線
-    nodeSeparation: 220,
-    idealEdgeLength: 70, // 短輻條 = 同主題葉點貼近 hub（叢內緊）
-    nodeRepulsion: 18000, // 強斥力 = 不同主題叢推開、用滿畫布（叢間鬆）
-    gravity: 0.12, // 弱重力 = 不把叢全擠到中心，讓它們散開填空白
-    gravityRange: 4.5,
-    numIter: 2500,
-    packComponents: true, // 把不相連的主題叢（如無跨主題點子者）整齊鋪開
-    padding: 50,
-  } as unknown as cytoscape.LayoutOptions;
-}
+const CROSS_RING = "#ef9f27"; // 跨主題橘環
+const HUB_RING = "#14171a";
 
-// cytoscape 樣式：顏色吃 data(color)，形狀依來源 class，跨主題加粗環，互動態用 .focus/.faded。
-function graphStyle(): cytoscape.StylesheetJson {
-  return [
-    {
-      selector: "node",
+const nd = (d: NodeData): GNodeData => d.data as unknown as GNodeData;
+const ed = (d: EdgeData): GEdgeData => d.data as unknown as GEdgeData;
+const cd = (d: ComboData): { label: string; color: string } =>
+  d.data as unknown as { label: string; color: string };
+
+// G6 設定：節點形狀/大小/環依 data，邊依 cross 弱化，combo 是淡染泡泡，佈局用 combo-combined。
+function graphOptions(container: HTMLElement, data: G6GraphData): GraphOptions {
+  return {
+    container,
+    data,
+    autoResize: false, // 由 onShow 控制（面板隱藏時容器 0 尺寸）
+    padding: 24,
+    node: {
+      type: (d: NodeData) => {
+        const data = nd(d);
+        if (data.kind === "concept") return "circle";
+        return data.origin === "human" ? "rect" : data.origin === "spark" ? "diamond" : "circle";
+      },
       style: {
-        "background-color": "data(color)",
-        label: "",
-        "transition-property": "width height border-width opacity",
-        "transition-duration": 180,
+        fill: (d: NodeData) => nd(d).color,
+        size: (d: NodeData) => (nd(d).kind === "concept" ? 26 : nd(d).cross ? 16 : 12),
+        radius: (d: NodeData) => (nd(d).origin === "human" ? 3 : 0), // 手寫＝圓角方
+        stroke: (d: NodeData) =>
+          nd(d).cross ? CROSS_RING : nd(d).kind === "concept" ? HUB_RING : "transparent",
+        lineWidth: (d: NodeData) => (nd(d).cross ? 3 : nd(d).kind === "concept" ? 2 : 0),
+      },
+      state: {
+        active: { lineWidth: 3, stroke: "#e6edf3" }, // hover：只亮起鄰域，不壓暗其他
       },
     },
-    {
-      selector: "node.concept",
+    edge: {
       style: {
-        width: 26,
-        height: 26,
-        label: "data(label)",
-        color: "#e6edf3",
-        "font-size": 13,
-        "font-weight": 600,
-        "text-valign": "top",
-        "text-margin-y": -4,
-        "text-outline-color": "#14171a",
-        "text-outline-width": 3,
-        "border-width": 2,
-        "border-color": "#14171a",
+        stroke: (d: EdgeData) => ed(d).color,
+        lineWidth: (d: EdgeData) => (ed(d).cross ? 1 : 1.5),
+        strokeOpacity: (d: EdgeData) => (ed(d).cross ? 0.22 : 0.45),
+        lineDash: (d: EdgeData) => (ed(d).cross ? [5, 4] : 0),
+        endArrow: false,
+      },
+      state: {
+        active: { strokeOpacity: 0.9, lineWidth: 2 },
       },
     },
-    { selector: "node.idea", style: { width: 12, height: 12 } },
-    { selector: "node.ai", style: { shape: "ellipse" } },
-    { selector: "node.human", style: { shape: "round-rectangle" } },
-    { selector: "node.spark", style: { shape: "diamond", width: 14, height: 14 } },
-    {
-      selector: "node.cross",
-      style: { width: 16, height: 16, "border-width": 3, "border-color": "#ef9f27" },
-    },
-    {
-      selector: "edge",
+    combo: {
+      type: "circle",
       style: {
-        width: 1.5,
-        "line-color": "data(color)",
-        "line-opacity": 0.45,
-        "curve-style": "straight",
+        fill: (d: ComboData) => cd(d).color,
+        fillOpacity: 0.07,
+        stroke: (d: ComboData) => cd(d).color,
+        strokeOpacity: 0.45,
+        lineWidth: 1,
+        labelText: (d: ComboData) => cd(d).label,
+        labelFill: "#e6edf3",
+        labelFontSize: 13,
+        labelPlacement: "top",
+        labelOffsetY: -4,
       },
     },
-    { selector: ".faded", style: { opacity: 0.12 } },
-    {
-      selector: "node.focus",
-      style: { width: 30, height: 30, "border-width": 3, "border-color": "#e6edf3" },
+    layout: {
+      type: "combo-combined",
+      comboPadding: 20,
+      comboSpacing: 30, // 泡泡之間的間距
+      // layout 內外共用：外層(無 comboId)用 force 把泡泡推開分離、內層用 concentric 排點子成外環。
+      // nodeSize/nodeSpacing 加大 + preventOverlap → 主題中心↔點子拉開，不黏成一坨。
+      layout: (comboId: string | null) =>
+        comboId
+          ? { type: "concentric", preventOverlap: true, nodeSize: 44, nodeSpacing: 30 }
+          : { type: "force", preventOverlap: true },
     },
-    { selector: "node.concept.focus", style: { width: 36, height: 36 } },
-    { selector: "edge.focus", style: { width: 2.5, "line-opacity": 0.9 } },
-  ] as unknown as cytoscape.StylesheetJson;
+    behaviors: [
+      "drag-canvas",
+      { type: "zoom-canvas", sensitivity: 0.5 }, // 滾輪縮放靈敏度調低（預設 1，太快）
+      "drag-element",
+      { type: "hover-activate", degree: 1, state: "active" }, // 只亮鄰域，不壓暗全圖
+      "collapse-expand", // 雙擊泡泡收合／展開
+    ],
+  } as unknown as GraphOptions;
 }
 
 export interface GraphHandle {
   el: HTMLElement;
-  activate: () => void; // 容器掛進 DOM 後再呼叫（cytoscape 需要實際尺寸）
-  onShow: () => void; // 步驟切回此面板時呼叫：重算尺寸並重新 fit（隱藏時容器 0 尺寸）
+  activate: () => void; // 容器掛進 DOM 後再呼叫（G6 需要實際尺寸）
+  onShow: () => void; // 步驟切回此面板：重算尺寸並重新 fit（隱藏時容器 0 尺寸）
+}
+
+interface PointerEvt {
+  target: { id: string };
+  client: { x: number; y: number };
 }
 
 // 掛載互動式關係圖。harvest：更新時呼叫，回傳步2收割的新點子。
@@ -124,7 +148,7 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
   updateBtn.textContent = "↻ 更新";
   updateBtn.title = "把「自己多想」新填的靈感畫進圖";
 
-  // 縮放/全景/聚焦工具列（解決滾輪縮放太慢）
+  // 縮放/全景工具列
   const tools = document.createElement("div");
   tools.className = "graph-tools";
   const mkTool = (label: string, titleText: string): HTMLButtonElement => {
@@ -138,14 +162,13 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
   const zoomInBtn = mkTool("＋", "放大");
   const zoomOutBtn = mkTool("－", "縮小");
   const fitBtn = mkTool("⛶", "全景（看全部）");
-  const focusBtn = mkTool("◎", "聚焦（對齊目前選的主題）");
-  tools.append(zoomInBtn, zoomOutBtn, fitBtn, focusBtn);
+  tools.append(zoomInBtn, zoomOutBtn, fitBtn);
   head.append(title, tools, updateBtn);
 
   const sub = document.createElement("p");
   sub.className = "graph-sub";
   sub.textContent =
-    "顏色分主題；形狀分來源（圓=AI、圓角方=你手寫、菱形=火花）；橘色加粗環的點子橫跨多主題，可能是真核心或沒拆乾淨。點主題可聚焦，hover 看全文，可拖曳。";
+    "每個泡泡是一個主題，內含它的點子；形狀分來源（圓=AI、圓角方=你手寫、菱形=火花）。橘色環的點子橫跨多主題、用虛線橋到別的泡泡，可能是真核心或沒拆乾淨。hover 看全文，可拖曳，雙擊泡泡可收合。";
 
   const canvas = document.createElement("div");
   canvas.className = "graph-canvas";
@@ -157,133 +180,73 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
   box.append(head, sub, canvas);
   canvas.append(tip);
 
-  let cy: cytoscape.Core | null = null;
-  let locked: cytoscape.Collection | null = null; // 點主題「鎖定」的子圖（hover 移開不清，聚焦鈕用）
+  let graph: Graph | null = null;
 
-  const clearVisual = (): void => {
-    cy?.elements().removeClass("faded focus");
+  // 漂浮卡：顯示節點全文（圖上故意不畫標籤，避免重疊）
+  const el = (cls: string, text: string): HTMLElement => {
+    const e = document.createElement("div");
+    e.className = cls;
+    e.textContent = text;
+    return e;
   };
-  // 高亮某集合（自己 + 鄰域），其餘淡出。
-  const applyFocus = (eles: cytoscape.Collection): void => {
-    if (!cy) return;
-    cy.elements().addClass("faded");
-    eles.removeClass("faded").addClass("focus");
-  };
-  // hover 結束時回到「鎖定」狀態（有鎖定就還原它，沒有就全清）→ 點擊選取得以保留。
-  const restore = (): void => {
-    clearVisual();
-    if (locked && locked.length > 0) applyFocus(locked);
-  };
-
-  const showTip = (node: cytoscape.NodeSingular): void => {
+  const showTip = (data: GNodeData, ev: PointerEvt): void => {
     tip.replaceChildren();
-    if (node.data("kind") === "concept") {
-      const t = document.createElement("div");
-      t.className = "tip-title";
-      t.textContent = node.data("label");
-      tip.append(t);
+    if (data.kind === "concept") {
+      tip.append(el("tip-title", data.label));
     } else {
-      const origin = node.data("origin") as IdeaOrigin;
-      const meta = document.createElement("div");
-      meta.className = "tip-meta";
-      meta.textContent = `${ORIGIN_LABEL[origin]} · 主題：${node.data("members")}`;
-      const body = document.createElement("div");
-      body.className = "tip-body";
-      body.textContent = node.data("label");
-      tip.append(meta, body);
-      const quote = node.data("quote") as string;
-      if (quote) {
-        const q = document.createElement("div");
-        q.className = "tip-quote";
-        q.textContent = `原文：${quote}`;
-        tip.append(q);
-      }
+      tip.append(
+        el("tip-meta", `${ORIGIN_LABEL[data.origin ?? "ai"]} · 主題：${data.members ?? ""}`),
+      );
+      tip.append(el("tip-body", data.label));
+      if (data.quote) tip.append(el("tip-quote", `原文：${data.quote}`));
     }
-    const pos = node.renderedPosition();
-    tip.style.left = `${pos.x + 14}px`;
-    tip.style.top = `${pos.y + 14}px`;
+    const rect = canvas.getBoundingClientRect();
+    tip.style.left = `${ev.client.x - rect.left + 14}px`;
+    tip.style.top = `${ev.client.y - rect.top + 14}px`;
     tip.hidden = false;
   };
 
-  const wire = (): void => {
-    if (!cy) return;
-    cy.on("mouseover", "node", (evt) => {
-      const node = evt.target as cytoscape.NodeSingular;
-      clearVisual();
-      applyFocus(node.closedNeighborhood());
-      showTip(node);
-    });
-    cy.on("mouseout", "node", () => {
+  const wire = (g: Graph): void => {
+    const onEnterMove = (e: unknown): void => {
+      const ev = e as PointerEvt;
+      const data = g.getNodeData(ev.target.id)?.data as unknown as GNodeData | undefined;
+      if (data) showTip(data, ev);
+    };
+    g.on("node:pointerenter", onEnterMove);
+    g.on("node:pointermove", onEnterMove);
+    g.on("node:pointerleave", () => {
       tip.hidden = true;
-      restore(); // 回到鎖定狀態，不是無條件清掉
-    });
-    // 點主題 → 鎖定該子圖（hover 移開仍保留）；點空白 → 解除鎖定
-    cy.on("tap", "node.concept", (evt) => {
-      locked = (evt.target as cytoscape.NodeSingular).closedNeighborhood();
-      applyFocus(locked);
-    });
-    cy.on("tap", (evt) => {
-      if (evt.target === cy) {
-        locked = null;
-        clearVisual();
-      }
     });
   };
 
-  // 工具列：以畫面中心為錨縮放、全景、聚焦目前鎖定的子圖
-  const zoomBy = (factor: number): void => {
-    if (!cy) return;
-    const center = { x: cy.width() / 2, y: cy.height() / 2 };
-    cy.animate(
-      { zoom: { level: cy.zoom() * factor, renderedPosition: center } },
-      { duration: 150 },
-    );
-  };
-  zoomInBtn.addEventListener("click", () => zoomBy(1.4));
-  zoomOutBtn.addEventListener("click", () => zoomBy(1 / 1.4));
-  fitBtn.addEventListener("click", () =>
-    cy?.animate({ fit: { eles: cy.elements(), padding: 40 } }),
-  );
-  focusBtn.addEventListener("click", () => {
-    if (!cy) return;
-    const eles = locked && locked.length > 0 ? locked : cy.elements();
-    cy.animate({ fit: { eles, padding: 60 } });
-  });
-
-  let loading: Promise<CytoscapeFn> | null = null;
+  // 建圖／重繪（更新時重抓資料、重跑佈局）
+  let loading: Promise<GraphCtor> | null = null;
   const render = async (extra: ExtraNode[]): Promise<void> => {
-    if (!loading) loading = loadCytoscape();
-    const cytoscapeFn = await loading;
-    if (cy) {
-      cy.elements().remove();
-      cy.add(buildElements(sprint, extra));
+    if (!loading) loading = loadG6();
+    const Ctor = await loading;
+    const data = buildGraphData(sprint, extra) as unknown as G6GraphData;
+    if (graph) {
+      graph.setData(data);
+      await graph.render();
     } else {
-      cy = cytoscapeFn({
-        container: canvas,
-        elements: buildElements(sprint, extra),
-        style: graphStyle(),
-        layout: { name: "preset" }, // 先 preset 避免初始閃動，下面再跑 fcose
-        wheelSensitivity: 0.5, // 滾輪縮放加快（預設過慢）
-        pixelRatio: "auto", // 跟著螢幕 DPI → 標籤清晰不糊
-        textureOnViewport: false, // 互動時不用低解析貼圖，文字維持銳利
-        motionBlur: false,
-      });
-      wire();
+      graph = new Ctor(graphOptions(canvas, data));
+      wire(graph);
+      await graph.render();
     }
-    cy.layout(fcoseLayout()).run();
   };
 
-  updateBtn.addEventListener("click", () => {
-    void render(harvest());
-  });
+  updateBtn.addEventListener("click", () => void render(harvest()));
+  zoomInBtn.addEventListener("click", () => void graph?.zoomBy(1.3));
+  zoomOutBtn.addEventListener("click", () => void graph?.zoomBy(1 / 1.3));
+  fitBtn.addEventListener("click", () => void graph?.fitView());
 
   return {
     el: box,
     activate: () => void render([]),
     onShow: () => {
-      if (!cy) return;
-      cy.resize(); // 面板從隱藏轉顯示，容器尺寸變了 → 重算
-      cy.fit(cy.elements(), 40);
+      if (!graph) return;
+      graph.resize(); // 面板從隱藏轉顯示，容器尺寸變了 → 重算
+      void graph.fitView();
     },
   };
 }

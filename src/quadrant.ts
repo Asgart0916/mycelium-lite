@@ -119,17 +119,26 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
     filterSel.value = filterConcept;
   }
 
-  // 2×2 底圖：四象限色塊 + 軸標 + quick-win 標記
+  // 2×2 底圖：四象限（各帶標籤）+ 四向軸標 + quick-win 標記
   const grid = el("div", "quad-grid");
+  const cell = (cls: string, tag: string): HTMLElement => {
+    const c = el("div", cls);
+    c.append(el("span", "cell-tag", tag));
+    return c;
+  };
   grid.append(
-    el("div", "quad-cell quad-win", "優先"),
-    el("div", "quad-cell", ""),
-    el("div", "quad-cell", ""),
-    el("div", "quad-cell", ""),
+    cell("quad-cell quad-win", "先做 · 高效益低成本"),
+    cell("quad-cell", "要規劃 · 高效益高成本"),
+    cell("quad-cell", "順手做 · 低效益低成本"),
+    cell("quad-cell", "別做 · 低效益高成本"),
   );
   canvas.append(grid);
-  canvas.append(el("span", "quad-axis quad-axis-y", "效益 ↑"));
-  canvas.append(el("span", "quad-axis quad-axis-x", "成本 →"));
+  canvas.append(
+    el("span", "quad-axis quad-axis-y", "效益高 ↑"),
+    el("span", "quad-axis quad-axis-y-low", "效益低 ↓"),
+    el("span", "quad-axis quad-axis-x", "成本高 →"),
+    el("span", "quad-axis quad-axis-x-low", "← 成本低"),
+  );
   const chipLayer = el("div", "quad-chips");
   canvas.append(chipLayer);
 
@@ -149,9 +158,11 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
     for (const id of shortlist) {
       const p = placements[id] ?? { impact: 0.5, effort: 0.5 };
       placements[id] = p;
-      const chip = el("div", "quad-chip", labelOf(id));
+      const chip = el("div", "quad-chip");
+      const dot = el("span", "quad-dot");
+      dot.style.background = colorOf(id);
+      chip.append(dot, document.createTextNode(labelOf(id)));
       chip.title = labelOf(id);
-      chip.style.borderColor = colorOf(id);
       placeChip(chip, p);
       attachDrag(chip, id);
       chipLayer.append(chip);
@@ -191,6 +202,12 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = shortlist.has(idea.id);
+      // 自訂勾選框外觀；原生 checkbox 隱藏但仍是狀態源（保留鍵盤/a11y）
+      const check = el("span", "quad-check");
+      const sync = () => {
+        row.classList.toggle("checked", cb.checked);
+        check.textContent = cb.checked ? "✓" : "";
+      };
       cb.addEventListener("change", () => {
         if (cb.checked) {
           shortlist.add(idea.id);
@@ -199,13 +216,15 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
           shortlist.delete(idea.id);
           delete placements[idea.id];
         }
+        sync();
         renderChips();
         emit();
       });
+      sync(); // 初始勾選狀態
       const dot = el("span", "quad-dot");
       dot.style.background = idea.color;
       const text = el("span", "quad-item-label", idea.label);
-      row.append(cb, dot, text);
+      row.append(cb, check, dot, text);
       listWrap.append(row);
     }
   }

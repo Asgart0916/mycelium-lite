@@ -343,9 +343,17 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
   railExpand.title = "展開側欄";
   rail.append(railExpand);
 
-  // 偵測本地 Ollama；可達才掛 spark-on（CSS 用它 hover 浮現破冰鈕），否則火花入口維持隱藏
+  // 偵測本地 Ollama；可達才掛 spark-on（CSS 用它 hover 浮現破冰鈕），否則火花入口維持隱藏。
+  // 公開站（非 localhost）連不上本機 Ollama 是瀏覽器擋的（mixed content / PNA），非 bug；
+  // 此時掛 spark-remote → 顯示說明，告知「火花只在本機開站可用」，避免誤判成壞掉。
+  const sparkHint = el("div", "spark-hint", "💡 火花破冰需在本機開站（npm run dev）才啟用");
+  box.append(sparkHint);
   detectOllama().then((ok) => {
-    if (ok) box.classList.add("spark-on");
+    if (ok) {
+      box.classList.add("spark-on");
+    } else if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      box.classList.add("spark-remote");
+    }
   });
 
   const actions = el("div", "diverge-actions");

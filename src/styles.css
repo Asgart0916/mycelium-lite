@@ -866,6 +866,19 @@ header .dot {
   font-size: 11px;
   color: var(--err);
 }
+/* 公開站（非 localhost）：火花連不上本機 Ollama，改顯示一行低調說明（box.spark-remote 控）*/
+.spark-hint {
+  display: none;
+  font-size: 11px;
+  color: var(--text-dim);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-top: 6px;
+}
+.spark-remote .spark-hint {
+  display: block;
+}
 
 /* 大關係圖（圖是主角，明顯比側欄大）*/
 .graph-head {

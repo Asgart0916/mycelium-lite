@@ -136,6 +136,7 @@ interface PointerEvt {
 export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): GraphHandle {
   const box = document.createElement("section");
   box.className = "graph";
+  box.style.position = "relative"; // 漂浮卡的定位基準（tip 改掛 box，避免被 G6 操作 canvas DOM 沖掉）
 
   const head = document.createElement("div");
   head.className = "graph-head";
@@ -177,8 +178,7 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
   tip.className = "graph-tip";
   tip.hidden = true;
 
-  box.append(head, sub, canvas);
-  canvas.append(tip);
+  box.append(head, sub, canvas, tip);
 
   let graph: Graph | null = null;
 
@@ -200,7 +200,7 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
       tip.append(el("tip-body", data.label));
       if (data.quote) tip.append(el("tip-quote", `原文：${data.quote}`));
     }
-    const rect = canvas.getBoundingClientRect();
+    const rect = box.getBoundingClientRect(); // tip 現為 box 子節點，定位基準改 box
     tip.style.left = `${ev.client.x - rect.left + 14}px`;
     tip.style.top = `${ev.client.y - rect.top + 14}px`;
     tip.hidden = false;
@@ -221,17 +221,24 @@ export function mountGraph(sprint: RawSprint, harvest: () => ExtraNode[]): Graph
 
   // 建圖／重繪（更新時重抓資料、重跑佈局）
   let loading: Promise<GraphCtor> | null = null;
+  let renderInFlight = false;
   const render = async (extra: ExtraNode[]): Promise<void> => {
-    if (!loading) loading = loadG6();
-    const Ctor = await loading;
-    const data = buildGraphData(sprint, extra) as unknown as G6GraphData;
-    if (graph) {
-      graph.setData(data);
-      await graph.render();
-    } else {
-      graph = new Ctor(graphOptions(canvas, data));
-      wire(graph);
-      await graph.render();
+    if (renderInFlight) return; // 防重進：快速雙擊「更新」會讓兩個 render 同時 setData/render 互相覆蓋
+    renderInFlight = true;
+    try {
+      if (!loading) loading = loadG6(); // 保留單次 loading promise（鎖定項）
+      const Ctor = await loading;
+      const data = buildGraphData(sprint, extra) as unknown as G6GraphData;
+      if (graph) {
+        graph.setData(data);
+        await graph.render();
+      } else {
+        graph = new Ctor(graphOptions(canvas, data));
+        wire(graph);
+        await graph.render();
+      }
+    } finally {
+      renderInFlight = false;
     }
   };
 

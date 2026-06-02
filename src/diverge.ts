@@ -2,6 +2,7 @@
 // 卡點 = 維度覆蓋缺口（unknown unknown）：訊號來自「人實際碰了什麼」的差集，
 // 不是 AI 輸出、也不是人自陳。對齊 crazy8s 原型「某維度全空 = 最大盲點」。
 
+import { cellKey } from "./model";
 import { LENS_KEYS, type LensKey } from "./parse";
 
 // 一格 = 某主題 × 某角度，人手動補的點子（空陣列 = 沒碰這格）
@@ -24,10 +25,6 @@ export interface GapReport {
   totalCells: number;
 }
 
-export function cellKey(conceptId: string, lens: LensKey): string {
-  return `${conceptId}__${lens}`;
-}
-
 // 偵測差集：以「AI 展開過的角度」為全集，比對人手動覆蓋，回報整列／整欄的缺口。
 export function detectGaps(
   conceptIds: string[],
@@ -35,8 +32,10 @@ export function detectGaps(
   cells: DivergeCell[],
 ): GapReport {
   const filled = new Set<string>();
+  const conceptIdSet = new Set(conceptIds);
   for (const c of cells) {
-    if (c.ideas.length > 0) {
+    // 只算仍在範圍內的主題：殘留已刪主題的格不該讓 touchedCells 超過 totalCells
+    if (c.ideas.length > 0 && conceptIdSet.has(c.conceptId)) {
       filled.add(cellKey(c.conceptId, c.lens));
     }
   }

@@ -142,9 +142,6 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
   const chipLayer = el("div", "quad-chips");
   canvas.append(chipLayer);
 
-  const labelOf = (id: string): string => ideas.find((i) => i.id === id)?.label ?? id;
-  const colorOf = (id: string): string => ideas.find((i) => i.id === id)?.color ?? "#6b7785";
-
   function placeChip(chip: HTMLElement, p: Placement): void {
     const w = canvas.clientWidth || 1;
     const h = canvas.clientHeight || 1;
@@ -155,14 +152,18 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
 
   function renderChips(): void {
     chipLayer.replaceChildren();
+    // 建一次 id→idea 對照，省掉每 chip 多次 O(n) find（renderChips 期間 ideas 不變）
+    const ideasMap = new Map(ideas.map((i) => [i.id, i]));
     for (const id of shortlist) {
       const p = placements[id] ?? { impact: 0.5, effort: 0.5 };
       placements[id] = p;
+      const idea = ideasMap.get(id);
+      const label = idea?.label ?? id;
       const chip = el("div", "quad-chip");
       const dot = el("span", "quad-dot");
-      dot.style.background = colorOf(id);
-      chip.append(dot, document.createTextNode(labelOf(id)));
-      chip.title = labelOf(id);
+      dot.style.background = idea?.color ?? "#6b7785";
+      chip.append(dot, document.createTextNode(label));
+      chip.title = label;
       placeChip(chip, p);
       attachDrag(chip, id);
       chipLayer.append(chip);
@@ -187,6 +188,11 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
       chip.releasePointerCapture(e.pointerId);
       chip.classList.remove("dragging");
       emit();
+    });
+    // 系統手勢中斷會發 pointercancel 而非 pointerup → 只清理狀態、不 emit，避免 dragging class 永久殘留
+    chip.addEventListener("pointercancel", (e) => {
+      chip.releasePointerCapture(e.pointerId);
+      chip.classList.remove("dragging");
     });
   }
 
@@ -254,9 +260,20 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
     el: box,
     onShow: () => {
       ideas = opts.getIdeas();
+      // 切回此面板先對帳：步2 刪掉的點子要從 shortlist/placements 移除，
+      // 否則 renderChips 會畫孤兒 chip，且 stale id 會被 onChange 持久化。
+      const r = reconcile(
+        { shortlist: [...shortlist], placements },
+        ideas.map((i) => i.id),
+      );
+      shortlist.clear();
+      for (const id of r.shortlist) shortlist.add(id);
+      for (const k of Object.keys(placements)) delete placements[k];
+      Object.assign(placements, r.placements);
       renderFilter();
       renderList();
-      renderChips();
+      // 面板剛從隱藏轉顯示時 CSS 還沒 layout，canvas 寬高可能為 0 → 延到下一 frame 再放 chip
+      requestAnimationFrame(renderChips);
     },
   };
 }

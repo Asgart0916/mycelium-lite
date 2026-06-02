@@ -74,7 +74,8 @@ export function harvestNodes(rows: HarvestRow[]): ExtraNode[] {
 // 每個主題配一個固定色（依出現序，超過色盤長度循環）。
 export function assignConceptColors(conceptIds: string[]): Map<string, string> {
   const map = new Map<string, string>();
-  conceptIds.forEach((id, i) => {
+  // 去重防禦：重複 id 會占兩個色盤格並位移後續配色（常態無重複，不影響正常行為）
+  [...new Set(conceptIds)].forEach((id, i) => {
     map.set(id, CONCEPT_PALETTE[i % CONCEPT_PALETTE.length]);
   });
   return map;
@@ -144,7 +145,8 @@ export function buildGraphData(sprint: RawSprint, extra: ExtraNode[] = []): Grap
 
   // AI 回填點子：放進主歸屬主題的泡泡；每個歸屬拉一條邊（第一個=主邊，其餘=跨主題橋）
   for (const n of sprint.nodes) {
-    const cids = (n.core_concept_ids ?? []).filter((id) => conceptSet.has(id));
+    // 去重：core_concept_ids 含重複值會生出兩條同 id 邊（e_n_c1），G6 對重複 edge id 行為未定義
+    const cids = [...new Set((n.core_concept_ids ?? []).filter((id) => conceptSet.has(id)))];
     const primary = cids[0];
     if (!primary) continue; // 無有效歸屬 → 不入圖
     const cross = cids.length > 1;

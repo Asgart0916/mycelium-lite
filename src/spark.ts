@@ -77,15 +77,24 @@ export function parseSparkOutput(raw: string): SparkResult {
       section = "dir";
       continue;
     }
-    if (/^隨想[:：]?$/.test(t)) {
+    // 隨想標題：純標題或帶 inline 內容（隨想：xxx）都切到 musing，
+    // 否則尾端有字時躲過 header 比對，會被下方裸行分支誤收成方向。
+    const musM = t.match(/^隨想[:：]\s*(.*)$/);
+    if (musM) {
       section = "musing";
+      const rest = musM[1].trim();
+      if (rest && !isPlaceholder(rest)) musingLines.push(stripLabelPrefix(rest));
       continue;
     }
     if (section === "dir" && /^[-*・•]/.test(t)) {
       const d = stripLabelPrefix(t.replace(/^[-*・•]\s*/, "").trim());
       if (!isPlaceholder(d)) directions.push(d);
+    } else if (section === "dir") {
+      // 模型在「方向：」後直接給無 bullet 的裸行也收（段落標題已在上方 continue 濾掉）
+      const d = stripLabelPrefix(t);
+      if (!isPlaceholder(d)) directions.push(d);
     } else if (section === "musing") {
-      if (!isPlaceholder(t)) musingLines.push(t);
+      if (!isPlaceholder(t)) musingLines.push(stripLabelPrefix(t));
     }
   }
 
@@ -97,9 +106,12 @@ export async function detectOllama(timeoutMs = 2500): Promise<boolean> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal });
-    clearTimeout(timer);
-    return res.ok;
+    try {
+      const res = await fetch(`${OLLAMA_URL}/api/tags`, { signal: ctrl.signal });
+      return res.ok;
+    } finally {
+      clearTimeout(timer); // fetch 拋例外時也要清，否則 timer 殘留到 timeoutMs 才觸發
+    }
   } catch {
     return false;
   }
@@ -111,22 +123,31 @@ export async function summonSpark(
   lensTitle: string,
   lensHint: string,
   currentIdeas: string[],
+  timeoutMs = 30000,
 ): Promise<SparkResult> {
   const prompt = buildSparkPrompt(conceptLabel, lensTitle, lensHint, currentIdeas);
-  const res = await fetch(`${OLLAMA_URL}/api/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: SPARK_MODEL,
-      prompt,
-      stream: false,
-      think: false,
-      options: { temperature: SPARK_TEMPERATURE },
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Ollama 回應 ${res.status}`);
+  // 本地推論卡死時 fetch 會永不 resolve → loading 解不開；用 AbortController 設逾時上限。
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: SPARK_MODEL,
+        prompt,
+        stream: false,
+        think: false,
+        options: { temperature: SPARK_TEMPERATURE },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Ollama 回應 ${res.status}`);
+    }
+    const data = (await res.json()) as { response?: string };
+    return parseSparkOutput(data.response ?? "");
+  } finally {
+    clearTimeout(timer);
   }
-  const data = (await res.json()) as { response?: string };
-  return parseSparkOutput(data.response ?? "");
 }

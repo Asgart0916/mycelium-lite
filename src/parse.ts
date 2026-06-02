@@ -57,7 +57,7 @@ export interface ValidationReport {
   trace?: TraceReport; // 有提供逐字稿才算
 }
 
-const LENS_KEYS: LensKey[] = ["fastest", "reverse", "crossdomain", "upstream"];
+export const LENS_KEYS: LensKey[] = ["fastest", "reverse", "crossdomain", "upstream"];
 
 // ── 容錯前處理：剝 markdown code fence、抓第一個 { 到最後一個 } ──────────────
 export function robustExtract(s: string): string {
@@ -130,7 +130,7 @@ export function validateSprint(sprint: RawSprint, transcript?: string): Validati
       used.add(cid);
       counts.set(cid, (counts.get(cid) ?? 0) + 1);
       if (!conceptIds.has(cid)) {
-        schemaErrors.push(`node ${n.id} 指向不存在概念 ${cid}`);
+        schemaErrors.push(`node ${n.id ?? "?"} 指向不存在概念 ${cid}`);
       }
     }
     if (normInput !== null) {
@@ -138,7 +138,7 @@ export function validateSprint(sprint: RawSprint, transcript?: string): Validati
       if (sq && normInput.includes(sq)) {
         traceMatched++;
       } else {
-        traceMisses.push(n.id);
+        traceMisses.push(n.id ?? "?");
       }
     }
   }
@@ -169,5 +169,3 @@ export function validateSprint(sprint: RawSprint, transcript?: string): Validati
   }
   return report;
 }
-
-export { LENS_KEYS };

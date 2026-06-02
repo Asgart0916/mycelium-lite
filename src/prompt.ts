@@ -32,7 +32,7 @@ const TEMPLATE_HEAD = `你是協助單人設計師整理 brainstorm 的助手。
 
 逐字稿：`;
 
-const TRANSCRIPT_PLACEHOLDER = "（請在這裡貼入逐字稿）";
+export const TRANSCRIPT_PLACEHOLDER = "（請在這裡貼入逐字稿）";
 
 // 由逐字稿組出可直接貼進 ChatGPT 的完整 prompt。逐字稿空白時放佔位，仍可複製後手動補。
 export function buildBackfillPrompt(transcript: string): string {

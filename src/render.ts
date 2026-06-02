@@ -92,8 +92,10 @@ export function renderDistribution(report: ValidationReport): HTMLElement {
   const avg = report.distribution.length ? total / report.distribution.length : 0;
   const max = report.distribution.reduce((a, d) => Math.max(a, d.count), 0) || 1;
 
+  let hasThin = false;
   for (const d of report.distribution) {
     const thin = d.count < avg; // 低於平均 = 點子少
+    if (thin) hasThin = true;
     const row = el("div", `dist-row${thin ? " thin" : ""}`);
     row.append(el("span", "dist-label", d.label));
     const barWrap = el("div", "dist-bar-wrap");
@@ -104,13 +106,16 @@ export function renderDistribution(report: ValidationReport): HTMLElement {
     if (thin) row.append(el("span", "dist-flag", "想得少"));
     box.append(row);
   }
-  box.append(
-    el(
-      "p",
-      "dist-hint",
-      "這主題你點子比較少——不一定是漏，自己判斷。真正的盲點往下走「自己多想幾個」才照得出來。",
-    ),
-  );
+  // 沒有任何「想得少」的列時不顯示提示，否則使用者找不到對應旗標會困惑
+  if (hasThin) {
+    box.append(
+      el(
+        "p",
+        "dist-hint",
+        "標「想得少」的主題點子比較少——不一定是漏，自己判斷。真正的盲點往下走「自己多想幾個」才照得出來。",
+      ),
+    );
+  }
   return box;
 }
 
@@ -144,7 +149,7 @@ export function renderBricks(sprint: RawSprint, report: ValidationReport): HTMLE
     const head = el("div", "col-head");
     head.append(
       el("span", "col-label", labels.get(d.id) ?? d.id),
-      el("span", "col-count", String(d.count)),
+      el("span", "col-count", String(nodes.length)), // 用實際入欄卡片數：d.count 對跨主題 node 重複計
     );
     if (thin) head.append(el("span", "col-flag", "少"));
     col.append(head);
@@ -303,6 +308,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
             set.add(text);
             sparkAdopted.set(key, set);
             opts.onChange?.(); // 採用後文字進了 textarea，回報以便自動存
+            updateCount(); // 採用是直接寫 ta.value（不觸發 input）→ 手動刷新標頭 N/4 與 rail pips
           });
         } catch (e) {
           sparkOut.hidden = false;
@@ -408,7 +414,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
     // 高亮漏掉的角度（每個主題的同角度區塊）與主題（整個收合區）
     for (const lens of LENS_KEYS) {
       const skipped = report.skippedLenses.includes(lens);
-      for (const node of accordion.querySelectorAll(`[data-lens="${lens}"]`)) {
+      for (const node of accordion.querySelectorAll(`.dv-lensblock[data-lens="${lens}"]`)) {
         node.classList.toggle("gap-lens", skipped);
       }
     }

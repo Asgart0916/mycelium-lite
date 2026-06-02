@@ -43,6 +43,16 @@ export function mountStepper(steps: Step[]): StepperHandle {
     updateFooter();
   };
 
+  // 上一步 / 下一步（宣告擺在 updateFooter 之前：後者要讀 prev/next.disabled）
+  const footer = el("div", "stepper-footer");
+  const prev = el("button", "ghost-btn", "← 上一步") as HTMLButtonElement;
+  const next = el("button", "ghost-btn", "下一步 →") as HTMLButtonElement;
+  prev.type = "button";
+  next.type = "button";
+  prev.addEventListener("click", () => go(current - 1));
+  next.addEventListener("click", () => go(current + 1));
+  footer.append(prev, next);
+
   // 末頁停用「下一步」、首頁停用「上一步」
   const updateFooter = (): void => {
     prev.disabled = current <= 0;
@@ -63,16 +73,7 @@ export function mountStepper(steps: Step[]): StepperHandle {
     body.append(s.panel);
   });
 
-  // 上一步 / 下一步
-  const footer = el("div", "stepper-footer");
-  const prev = el("button", "ghost-btn", "← 上一步") as HTMLButtonElement;
-  const next = el("button", "ghost-btn", "下一步 →") as HTMLButtonElement;
-  prev.type = "button";
-  next.type = "button";
-  prev.addEventListener("click", () => go(current - 1));
-  next.addEventListener("click", () => go(current + 1));
-  footer.append(prev, next);
-
   box.append(nav, body, footer);
+  go(0); // 預設落在第 1 步：避免回傳時 current=-1 的無效態（prev/next 仍可點 go(-1)/go(1)）
   return { el: box, go };
 }

@@ -60,6 +60,9 @@ function renderWorking() {
   if (!working) return;
   const sprint = working.raw;
   const report = validateSprint(sprint, working.transcript || undefined);
+  // 主題配色 / label 對照：單次 render 內 raw 不變，提到此層由閉包共用，省 candidateIdeas 每次 O(n) 重建
+  const colors = assignConceptColors(sprint.core_concepts.map((c) => c.id));
+  const labels = new Map(sprint.core_concepts.map((c) => [c.id, c.label]));
 
   const diverge = mountDiverge(sprint, {
     initial: working.diverge,
@@ -75,8 +78,6 @@ function renderWorking() {
   // 2×2 候選池：AI 點子 + 步2 收割，依主歸屬主題上色 + 帶主題（給篩選用）
   const candidateIdeas = (): IdeaRef[] => {
     if (!working) return [];
-    const colors = assignConceptColors(working.raw.core_concepts.map((c) => c.id));
-    const labels = new Map(working.raw.core_concepts.map((c) => [c.id, c.label]));
     const ai: IdeaRef[] = working.raw.nodes.map((n) => {
       const cid = n.core_concept_ids[0] ?? "";
       return {
@@ -201,6 +202,14 @@ jsonEl.addEventListener("keydown", (e) => {
   }
 });
 
+// 逐字稿 parse 後若再編輯，要寫回 working（否則 autosave 與匯出帶的是 parse 當下的舊值）
+transcriptEl.addEventListener("input", () => {
+  if (!working) return;
+  working.transcript = transcriptEl.value.trim();
+  working.updated_at = new Date().toISOString();
+  autosave();
+});
+
 // ── 步0 prompt 工廠：逐字稿 → 可貼進 ChatGPT 的指令 ──────────────────
 genPromptBtn.addEventListener("click", () => {
   const transcript = transcriptEl.value.trim();
@@ -232,7 +241,8 @@ exportBtn.addEventListener("click", () => {
   a.href = url;
   a.download = `mycelium-lite-${working.id}.json`;
   a.click();
-  URL.revokeObjectURL(url);
+  // 立即 revoke 在 Firefox 可能讓下載拿到 0 byte（瀏覽器還沒把下載排程出去）→ 延一拍再撤
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 });
 
 // ── 匯入：讀檔還原（覆蓋當前需確認 → 唯一具破壞性的操作）────────────
@@ -269,7 +279,6 @@ loadSprint()
     if (!saved) return;
     working = saved;
     transcriptEl.value = saved.transcript;
-    renderWorking();
-    setStatus(`已回復上次 sprint（${saved.raw.core_concepts.length} 主題）`, "ok");
+    renderWorking(); // 狀態由 renderWorking 結尾依 schema/孤兒主題設定，別在這無條件覆蓋成 ok
   })
   .catch((e) => console.error("還原失敗", e));

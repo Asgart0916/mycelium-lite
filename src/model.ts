@@ -3,7 +3,7 @@
 
 import type { ExtraNode } from "./graph-model";
 import { type HarvestRow, harvestNodes } from "./graph-model";
-import { LENS_KEYS, type RawSprint } from "./parse";
+import { LENS_KEYS, type LensKey, type RawSprint } from "./parse";
 
 export const SPRINT_SCHEMA = 1;
 
@@ -31,7 +31,7 @@ export interface WorkingSprint {
   placements: Record<string, Placement>; // 點子 id -> 2×2 落點
 }
 
-export function cellKey(conceptId: string, lens: string): string {
+export function cellKey(conceptId: string, lens: LensKey): string {
   return `${conceptId}__${lens}`;
 }
 

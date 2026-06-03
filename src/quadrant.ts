@@ -167,6 +167,24 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
       dot.style.background = idea?.color ?? "#6b7785";
       chip.append(dot, document.createTextNode(label));
       chip.title = label;
+      // 鍵盤可達：聚焦後用方向鍵移動落點（Shift 加大步），與滑鼠拖曳等效
+      chip.tabIndex = 0;
+      chip.setAttribute("role", "button");
+      chip.setAttribute("aria-label", `${label}（方向鍵移動位置，Shift 加大步）`);
+      chip.addEventListener("keydown", (e) => {
+        const stepSize = e.shiftKey ? 0.1 : 0.02;
+        const cur = placements[id] ?? { impact: 0.5, effort: 0.5 };
+        const next = { ...cur };
+        if (e.key === "ArrowLeft") next.effort = clamp01(cur.effort - stepSize);
+        else if (e.key === "ArrowRight") next.effort = clamp01(cur.effort + stepSize);
+        else if (e.key === "ArrowUp") next.impact = clamp01(cur.impact + stepSize);
+        else if (e.key === "ArrowDown") next.impact = clamp01(cur.impact - stepSize);
+        else return;
+        e.preventDefault();
+        placements[id] = next;
+        placeChip(chip, next);
+        emit();
+      });
       placeChip(chip, p);
       attachDrag(chip, id);
       chipLayer.append(chip);

@@ -8,6 +8,7 @@ import { fromJson, loadSprint, saveSprint, toJson } from "./persist";
 import { buildBackfillPrompt } from "./prompt";
 import { type IdeaRef, mountQuadrant } from "./quadrant";
 import { mountDiverge, renderBricks, renderDistribution, renderReport } from "./render";
+import { SAMPLE_JSON, SAMPLE_TRANSCRIPT } from "./sample";
 import { mountStepper } from "./stepper";
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector(sel) as T;
@@ -194,6 +195,29 @@ function parseAndRender() {
   autosave();
 }
 
+// 首次（無存檔）時 #output 的定向畫面：流程三步 + 一鍵載入範例 sprint
+function renderEmptyState() {
+  outEl.innerHTML = `
+    <div class="empty-state">
+      <h2 class="empty-title">把一場 brainstorm 照出盲點</h2>
+      <p class="empty-lead">貼上逐字稿，經 ChatGPT 整理成想法牆，再自己逐角度多想幾個——照出你整輪沒碰到的角度與主題。</p>
+      <ol class="empty-steps">
+        <li><b>1 想法牆</b><span>點子依主題分群，看哪塊想得少</span></li>
+        <li><b>2 自己多想幾個</b><span>四個角度逐一發散，揭露你漏掉的</span></li>
+        <li><b>3 收斂</b><span>勾選方向，拖進 Impact/Effort 2×2</span></li>
+      </ol>
+      <div class="empty-actions">
+        <button class="solid-btn" id="load-sample" type="button">載入範例 sprint</button>
+        <span class="empty-hint">或在上方①貼逐字稿開始</span>
+      </div>
+    </div>`;
+  outEl.querySelector<HTMLButtonElement>("#load-sample")?.addEventListener("click", () => {
+    transcriptEl.value = SAMPLE_TRANSCRIPT;
+    jsonEl.value = SAMPLE_JSON;
+    parseAndRender();
+  });
+}
+
 parseBtn.addEventListener("click", parseAndRender);
 jsonEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -276,9 +300,15 @@ importFile.addEventListener("change", async () => {
 // ── 啟動：還原上次 sprint（B1：重整頁不掉資料）────────────────────
 loadSprint()
   .then((saved) => {
-    if (!saved) return;
+    if (!saved) {
+      renderEmptyState(); // 首次無存檔：給定向畫面而非空白
+      return;
+    }
     working = saved;
     transcriptEl.value = saved.transcript;
     renderWorking(); // 狀態由 renderWorking 結尾依 schema/孤兒主題設定，別在這無條件覆蓋成 ok
   })
-  .catch((e) => console.error("還原失敗", e));
+  .catch((e) => {
+    console.error("還原失敗", e);
+    renderEmptyState();
+  });

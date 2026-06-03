@@ -7,6 +7,7 @@
   --text-dim: #9aa7b4;
   --accent: #5dcaa5;
   --accent-dim: #0f6e56;
+  --accent-fill: #0a4533; /* 按鈕填色：比 accent-dim 更深，讓 accent 字達 WCAG AA（~5.5:1）*/
   --warn: #ef9f27;
   --err: #f0997b;
   --thin: #ef9f27;
@@ -34,8 +35,6 @@
 
 body {
   margin: 0;
-  /* 整體放大到 125%（使用者偏好比例）；放 body 讓有效視窗縮小、不橫向溢出 */
-  zoom: 1.25;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
@@ -76,6 +75,72 @@ header .dot {
   font-size: 13px;
   margin: 8px 0 0;
   max-width: 52ch;
+}
+
+/* ── 首次空狀態：#output 無 sprint 時的定向（流程三步 + 載入範例）──────── */
+.empty-state {
+  max-width: 560px;
+  margin: 32px auto;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+.empty-lead {
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 auto 20px;
+  max-width: 46ch;
+}
+.empty-steps {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 0;
+  margin: 0 0 22px;
+  text-align: left;
+}
+.empty-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+.empty-steps b {
+  font-size: 13px;
+}
+.empty-steps span {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.empty-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+@media (max-width: 560px) {
+  .empty-steps {
+    grid-template-columns: 1fr;
+  }
 }
 
 .section-title {
@@ -162,6 +227,11 @@ header .dot {
   font-size: 13px;
   resize: vertical;
 }
+/* placeholder 顯式給 text-dim，確保對比 ≥4.5:1（瀏覽器預設會再壓淡）*/
+.composer textarea::placeholder,
+.dv-input::placeholder {
+  color: var(--text-dim);
+}
 .composer .col {
   display: flex;
   flex-direction: column;
@@ -242,7 +312,7 @@ header .dot {
 }
 .solid-btn,
 #parse-btn {
-  background: var(--accent-dim);
+  background: var(--accent-fill);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
@@ -283,7 +353,7 @@ header .dot {
 .step-tab.active {
   color: var(--accent);
   border-color: var(--accent);
-  background: var(--accent-dim);
+  background: var(--accent-fill);
 }
 .step-label-sub {
   color: var(--text-dim);
@@ -441,13 +511,12 @@ header .dot {
   gap: 12px;
   align-items: start;
 }
+/* 欄是分組容器，不是卡片（去掉 bg/border/radius，避免與內層 .brick 形成巢狀卡）；
+   thin 狀態改由欄標頭底線著色 + 「少」旗標表達 */
 .wall-col {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px;
+  padding: 0 4px;
 }
-.wall-col.thin {
+.wall-col.thin .col-head {
   border-color: var(--thin);
 }
 .col-head {
@@ -635,11 +704,12 @@ header .dot {
   flex-direction: column;
   gap: 10px;
 }
+/* 收合區是手風琴分組，用底線分隔而非整張卡（避免 sidebar > section > lensblock 三層巢狀卡）*/
 .dv-section {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+.dv-section:last-child {
+  border-bottom: none;
 }
 .dv-summary {
   display: flex;
@@ -757,7 +827,7 @@ header .dot {
   margin-top: 14px;
 }
 .reveal-btn {
-  background: var(--accent-dim);
+  background: var(--accent-fill);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
@@ -859,7 +929,7 @@ header .dot {
 }
 .spark-take {
   flex-shrink: 0;
-  background: var(--accent-dim);
+  background: var(--accent-fill);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 5px;
@@ -906,7 +976,7 @@ header .dot {
 }
 .graph-update {
   flex-shrink: 0;
-  background: var(--accent-dim);
+  background: var(--accent-fill);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
@@ -1046,8 +1116,18 @@ header .dot {
   background: var(--bg);
   border-color: var(--border);
 }
+/* 原生 checkbox 視覺隱藏但留在 tab order / 無障礙樹（display:none 會移出焦點，鍵盤就點不到）*/
 .quad-item input[type="checkbox"] {
-  display: none; /* 用自訂 .quad-check 呈現，保留原生 checkbox 當狀態源 */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+.quad-item input[type="checkbox"]:focus-visible + .quad-check {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .quad-check {
   flex-shrink: 0;
@@ -1171,6 +1251,11 @@ header .dot {
   z-index: 4;
   background: var(--panel);
 }
+.quad-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  z-index: 5;
+}
 .quad-chip.dragging {
   cursor: grabbing;
   opacity: 0.9;
@@ -1236,10 +1321,6 @@ header .dot {
 /* tab / 卡片 hover 微浮 */
 .step-tab:hover {
   transform: translateY(-1px);
-}
-.wall-col:hover {
-  border-color: var(--accent-dim);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
 }
 
 /* 彈出：揭露面板 / 火花輸出 / 漂浮卡 */

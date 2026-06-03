@@ -38,8 +38,9 @@ function renderSparkOut(
     return;
   }
   box.append(el("div", "spark-label", "機器提示 · 不會自動入牆，按「採用」才落地"));
-  for (const d of result.directions) {
+  result.directions.forEach((d, i) => {
     const row = el("div", "spark-dir");
+    row.style.setProperty("--reveal-i", String(i)); // 逐條 stagger 進場
     row.append(el("span", "spark-dir-text", d));
     const take = el("button", "spark-take", "採用") as HTMLButtonElement;
     take.type = "button";
@@ -50,7 +51,7 @@ function renderSparkOut(
     });
     row.append(take);
     box.append(row);
-  }
+  });
   if (result.musing) {
     box.append(el("div", "spark-musing", result.musing));
   }
@@ -295,6 +296,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
         sparkCounts.set(c.id, (sparkCounts.get(c.id) ?? 0) + 1);
         spark.disabled = true;
         spark.textContent = "想中…";
+        spark.classList.add("spark-loading"); // 呼吸脈動，傳達本地推論進行中
         try {
           const result = await summonSpark(
             c.label,
@@ -322,6 +324,7 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
         } finally {
           spark.disabled = false;
           spark.textContent = "卡住了？破冰";
+          spark.classList.remove("spark-loading");
         }
       });
 
@@ -425,6 +428,19 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       }
     }
 
+    // 整欄空的主題＝最大盲點：標頭依序脈動一次，把眼睛帶過去（重新揭露要能重播 → 先清再 reflow）
+    for (const sum of accordion.querySelectorAll<HTMLElement>(".dv-summary.gap-pulse")) {
+      sum.classList.remove("gap-pulse");
+      sum.style.removeProperty("animation-delay");
+    }
+    void accordion.offsetWidth; // 強制 reflow 讓動畫可重新觸發
+    report.skippedConcepts.forEach((id, i) => {
+      const sum = accordion.querySelector<HTMLElement>(`.dv-summary[data-concept="${id}"]`);
+      if (!sum) return;
+      sum.style.animationDelay = `${Math.min(i, 6) * 90}ms`;
+      sum.classList.add("gap-pulse");
+    });
+
     // 彙總句（列／欄層級，不逐格洗版）
     result.hidden = false;
     result.replaceChildren();
@@ -460,23 +476,24 @@ export function mountDiverge(sprint: RawSprint, opts: DivergeOpts = {}): Diverge
       return;
     }
     const ul = el("ul", "result-list");
+    let ri = 0; // stagger 序（跨兩段累加，封頂避免拖太長）
     for (const lens of report.skippedLenses) {
-      ul.append(
-        el(
-          "li",
-          "result-lens",
-          `你整輪都沒從「${LENS_META[lens].title}」想過任何主題——AI 在這角度想到了東西（看上方），你沒碰。`,
-        ),
+      const li = el(
+        "li",
+        "result-lens",
+        `你整輪都沒從「${LENS_META[lens].title}」想過任何主題——AI 在這角度想到了東西（看上方），你沒碰。`,
       );
+      li.style.setProperty("--reveal-i", String(Math.min(ri++, 8)));
+      ul.append(li);
     }
     for (const id of report.skippedConcepts) {
-      ul.append(
-        el(
-          "li",
-          "result-concept",
-          `「${conceptLabels.get(id) ?? id}」你完全沒多想幾個（四個角度都空）。`,
-        ),
+      const li = el(
+        "li",
+        "result-concept",
+        `「${conceptLabels.get(id) ?? id}」你完全沒多想幾個（四個角度都空）。`,
       );
+      li.style.setProperty("--reveal-i", String(Math.min(ri++, 8)));
+      ul.append(li);
     }
     result.append(ul);
     result.append(

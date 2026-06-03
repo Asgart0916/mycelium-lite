@@ -63,6 +63,8 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
   const shortlist = new Set(opts.initial.shortlist);
   const placements: Record<string, Placement> = { ...opts.initial.placements };
   let ideas = opts.getIdeas();
+  // 已畫過的 chip id：只對「新勾選」的 chip 播進場，拖曳/切面板重繪不重播（避免動畫疲勞）
+  let renderedChipIds = new Set<string>(opts.initial.shortlist);
 
   const emit = (): void => {
     opts.onChange({ shortlist: [...shortlist], placements: { ...placements } });
@@ -160,6 +162,7 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
       const idea = ideasMap.get(id);
       const label = idea?.label ?? id;
       const chip = el("div", "quad-chip");
+      if (!renderedChipIds.has(id)) chip.classList.add("chip-in"); // 新勾選才進場
       const dot = el("span", "quad-dot");
       dot.style.background = idea?.color ?? "#6b7785";
       chip.append(dot, document.createTextNode(label));
@@ -168,6 +171,7 @@ export function mountQuadrant(opts: QuadrantOpts): QuadrantHandle {
       attachDrag(chip, id);
       chipLayer.append(chip);
     }
+    renderedChipIds = new Set(shortlist);
   }
 
   function attachDrag(chip: HTMLElement, id: string): void {

@@ -72,6 +72,11 @@ function graphOptions(container: HTMLElement, data: G6GraphData): GraphOptions {
       state: {
         active: { lineWidth: 3, stroke: "#e6edf3" }, // hover：只亮起鄰域，不壓暗其他
       },
+      // 步2 按「更新」收割的新點子淡入（G6 diff：只有新節點走 enter）→ 傳達「我新想的加進圖了」。
+      // 只給 node.enter，不碰 layout 回呼／動態 import／hover-activate（皆鎖定項）。
+      animation: {
+        enter: [{ fields: ["opacity"], duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }],
+      },
     },
     edge: {
       style: {

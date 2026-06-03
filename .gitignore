@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# vite/esbuild 寫入時的瞬時暫存檔（如 src/foo.ts.tmp.NNNN.hash）
+*.tmp.*
+
 # fastembed 下載的 ONNX 模型快取（~100MB+，不入庫）
 .fastembed_cache/
 

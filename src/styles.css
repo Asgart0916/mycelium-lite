@@ -13,6 +13,19 @@
   --font-body: "Noto Sans TC", system-ui, sans-serif;
   --font-display: "Fraunces", "Noto Sans TC", serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* 動效 token：曲線與時長統一收斂，跨元件一致、好調 */
+  --ease-quint: cubic-bezier(0.22, 1, 0.36, 1); /* 自然減速，進場/過場主用 */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1); /* 更果斷，偶用 */
+  --dur-fast: 0.13s; /* 即時回饋 */
+  --dur-base: 0.22s; /* 狀態切換 */
+  --dur-slow: 0.32s; /* 佈局/抽屜 */
+  /* 間距 scale（4pt）：收斂散落字面值，rhythm 靠 token 級距而非隨手填數 */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
 }
 
 * {
@@ -45,7 +58,7 @@ body {
 
 /* ── header ───────────────────────────────────────────────── */
 header {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-lg); /* 標題列→輸入區：zone 邊界給較寬分隔（16→24）*/
 }
 header h1 {
   font-family: var(--font-display);
@@ -89,8 +102,8 @@ header .dot {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg); /* 輸入區→工作區：zone 邊界給較寬分隔（16→24）*/
 }
 .composer-bar {
   display: none;
@@ -116,7 +129,7 @@ header .dot {
 .composer-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 16px;
+  gap: var(--space-md);
 }
 .composer-head {
   display: flex;
@@ -319,15 +332,15 @@ header .dot {
   }
 }
 .panel-enter {
-  animation: panelEnter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: panelEnter 0.32s var(--ease-quint);
 }
 
 /* ── 步驟1 · 想法牆 ───────────────────────────────────────── */
 .report {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 1.25rem;
+  gap: var(--space-sm); /* 10→12 收斂 */
+  margin-bottom: var(--space-lg); /* 20→24，摘要列→想法牆分隔 */
 }
 .stat {
   background: var(--panel);
@@ -363,7 +376,7 @@ header .dot {
 .wall-layout {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
-  gap: 22px;
+  gap: var(--space-lg); /* 22→24 收斂到 scale */
   align-items: start;
 }
 .dist {
@@ -522,7 +535,7 @@ header .dot {
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
   transform: translateX(0);
   opacity: 1;
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+  transition: transform 0.3s var(--ease-quint), opacity 0.25s ease;
 }
 .work-split.collapsed .work-sidebar {
   transform: translateX(calc(-100% - 30px)); /* 滑出左側、不碰圖 */
@@ -565,8 +578,7 @@ header .dot {
   opacity: 0;
   pointer-events: none;
   transform: translate(-8px, -50%); /* 收起態滑出一點再淡入 */
-  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s
-    ease;
+  transition: opacity 0.25s ease, transform 0.3s var(--ease-quint), border-color 0.18s ease;
 }
 .work-split.collapsed .dv-rail {
   opacity: 1;
@@ -676,8 +688,7 @@ header .dot {
   overflow: hidden;
   max-height: 1600px;
   opacity: 1;
-  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease, padding 0.32s
-    ease;
+  transition: max-height 0.32s var(--ease-quint), opacity 0.22s ease, padding 0.32s ease;
 }
 .dv-lensblock {
   display: flex;
@@ -983,7 +994,7 @@ header .dot {
 .quad-layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  gap: 20px;
+  gap: var(--space-lg); /* 20→24 收斂到 scale */
   align-items: start;
 }
 .quad-listcol {
@@ -1254,18 +1265,91 @@ header .dot {
 }
 .diverge-result:not([hidden]),
 .spark-out:not([hidden]) {
-  animation: popIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: popIn 0.26s var(--ease-quint);
 }
 .graph-tip:not([hidden]) {
-  animation: tipIn 0.13s ease;
+  animation: tipIn var(--dur-fast) ease;
 }
 
-/* 無障礙：使用者要求減少動態時，全部關掉 */
+/* ── 步2 盲點揭露 hero：把注意力循序帶到漏掉的角度／主題 ──────────── */
+/* 揭露時各項由下滑入（result-list 條目、AI 角度框）；--reveal-i 控 stagger 序 */
+@keyframes revealRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* gap 標頭脈動一次，像把眼睛點過去（整欄空的主題＝最大盲點） */
+@keyframes gapPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 159, 39, 0);
+  }
+  35% {
+    box-shadow: 0 0 0 4px rgba(239, 159, 39, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 159, 39, 0);
+  }
+}
+/* 火花 loading：呼吸脈動，傳達本地推論進行中（配 summonSpark 30s timeout） */
+@keyframes sparkBreath {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* 2×2 新勾選的點子進象限：縮放淡入，傳達「清單→畫布」 */
+@keyframes chipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* gap 高亮的底色／邊框淡入（非瞬切），柔和不刺眼 */
+.dv-lensblock,
+.dv-summary {
+  transition: background-color var(--dur-base) ease, border-color var(--dur-base) ease, color
+    var(--dur-base) ease;
+}
+.result-list > li {
+  animation: revealRise var(--dur-slow) var(--ease-quint) both;
+  animation-delay: calc(var(--reveal-i, 0) * 60ms);
+}
+.dv-ai:not([hidden]) {
+  animation: revealRise var(--dur-base) var(--ease-quint) both;
+}
+.dv-summary.gap-pulse {
+  animation: gapPulse 0.7s var(--ease-quint) both;
+}
+.spark-btn.spark-loading {
+  animation: sparkBreath 1.1s ease-in-out infinite;
+}
+.spark-dir {
+  animation: revealRise var(--dur-base) var(--ease-quint) both;
+  animation-delay: calc(var(--reveal-i, 0) * 45ms);
+}
+.quad-chip.chip-in {
+  animation: chipIn var(--dur-slow) var(--ease-quint) both;
+}
+
+/* 無障礙：使用者要求減少動態時，全部關掉（連 stagger delay 一併歸零，避免內容卡在隱藏態） */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.001ms !important;
   }
 }
